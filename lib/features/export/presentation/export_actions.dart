@@ -4,13 +4,17 @@ class ExportActions extends StatelessWidget {
   const ExportActions({
     super.key,
     required this.isExporting,
+    required this.isPreviewing,
     required this.onExport,
+    required this.onPreview,
     required this.onReset,
     required this.statusMessage,
   });
 
   final bool isExporting;
+  final bool isPreviewing;
   final VoidCallback onExport;
+  final VoidCallback onPreview;
   final VoidCallback onReset;
   final String? statusMessage;
 
@@ -22,11 +26,19 @@ class ExportActions extends StatelessWidget {
         Row(
           children: [
             ElevatedButton(
-              onPressed: isExporting ? null : onExport,
+              onPressed: isExporting || isPreviewing ? null : onExport,
               child: Text(isExporting ? 'Exporting...' : 'Export'),
             ),
             const SizedBox(width: 12),
-            OutlinedButton(onPressed: isExporting ? null : onReset, child: const Text('Reset')),
+            OutlinedButton(
+              onPressed: isExporting || isPreviewing ? null : onPreview,
+              child: Text(isPreviewing ? 'Đang tạo...' : 'Preview'),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton(
+              onPressed: isExporting || isPreviewing ? null : onReset,
+              child: const Text('Reset'),
+            ),
           ],
         ),
         if (statusMessage != null) ...[

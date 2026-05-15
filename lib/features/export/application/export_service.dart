@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
@@ -14,17 +15,49 @@ class ExportResult {
   final String? error;
 }
 
+class PreviewResult {
+  const PreviewResult({required this.success, this.imageBytes, this.error});
+
+  final bool success;
+  final Uint8List? imageBytes;
+  final String? error;
+}
+
 class ExportService {
+  Future<PreviewResult> buildPreview(ExportRequest request) async {
+    final rendered = await _renderCanvas(request);
+    if (rendered.error != null) {
+      return PreviewResult(success: false, error: rendered.error);
+    }
+    return PreviewResult(
+      success: true,
+      imageBytes: Uint8List.fromList(img.encodeJpg(rendered.canvas!, quality: 92)),
+    );
+  }
+
   Future<ExportResult> export(ExportRequest request) async {
-    if (!request.isReady) {
-      return ExportResult(
-        success: false,
-        error: 'Please fill all ${request.requiredSlots} slots before export.',
-      );
+    final rendered = await _renderCanvas(request);
+    if (rendered.error != null) {
+      return ExportResult(success: false, error: rendered.error);
     }
 
     final outputDir = Directory(request.exportsDirectory);
     await outputDir.create(recursive: true);
+
+    final outputPath = _buildOutputPath(request.exportsDirectory);
+    final outFile = File(outputPath);
+    await outFile.writeAsBytes(img.encodeJpg(rendered.canvas!, quality: 92));
+
+    return ExportResult(success: true, filePath: outputPath);
+  }
+
+  Future<({img.Image? canvas, String? error})> _renderCanvas(ExportRequest request) async {
+    if (!request.isReady) {
+      return (
+        canvas: null,
+        error: 'Please fill all ${request.requiredSlots} slots before preview.',
+      );
+    }
 
     final canvas = img.Image(width: FrameLayout.exportWidth, height: FrameLayout.exportHeight);
     img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
@@ -39,11 +72,11 @@ class ExportService {
     for (var i = 0; i < request.slotPaths.length; i++) {
       final file = File(request.slotPaths[i]!);
       if (!await file.exists()) {
-        return ExportResult(success: false, error: 'Missing source file: ${file.path}');
+        return (canvas: null, error: 'Missing source file: ${file.path}');
       }
       final decoded = img.decodeImage(await file.readAsBytes());
       if (decoded == null) {
-        return ExportResult(success: false, error: 'Cannot decode image: ${file.path}');
+        return (canvas: null, error: 'Cannot decode image: ${file.path}');
       }
 
       final col = i % request.columns;
@@ -63,12 +96,7 @@ class ExportService {
     }
 
     _drawGridLines(canvas, request.rows, request.columns, outerPadX, outerPadY, cellW, cellH);
-
-    final outputPath = _buildOutputPath(request.exportsDirectory);
-    final outFile = File(outputPath);
-    await outFile.writeAsBytes(img.encodeJpg(canvas, quality: 92));
-
-    return ExportResult(success: true, filePath: outputPath);
+    return (canvas: canvas, error: null);
   }
 
   void _drawGridLines(

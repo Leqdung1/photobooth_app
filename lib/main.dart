@@ -11,6 +11,7 @@ import 'features/composer/presentation/preview_panel.dart';
 import 'features/export/application/export_service.dart';
 import 'features/export/domain/export_request.dart';
 import 'features/export/presentation/export_actions.dart';
+import 'features/export/presentation/export_preview_dialog.dart';
 import 'features/ingest/data/folder_watch_service.dart';
 import 'features/ingest/data/thumbnail_service.dart';
 import 'features/ingest/domain/photo_asset.dart';
@@ -60,6 +61,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   String? _statusMessage;
   bool _initializing = true;
   bool _isExporting = false;
+  bool _isPreviewing = false;
 
   @override
   void initState() {
@@ -100,19 +102,44 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     super.dispose();
   }
 
+  ExportRequest _buildExportRequest() {
+    return ExportRequest(
+      slotPaths: _composerController.slots.map((slot) => slot.assetPath).toList(growable: false),
+      exportsDirectory: _paths.exportsDirectory,
+      rows: _selectedTemplate.rows,
+      columns: _selectedTemplate.columns,
+    );
+  }
+
+  Future<void> _handlePreview() async {
+    setState(() {
+      _isPreviewing = true;
+      _statusMessage = 'Đang tạo preview...';
+    });
+
+    final result = await _exportService.buildPreview(_buildExportRequest());
+
+    if (!mounted) return;
+    setState(() {
+      _isPreviewing = false;
+      _statusMessage = result.success ? null : result.error;
+    });
+
+    if (!result.success || result.imageBytes == null) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ExportPreviewDialog(imageBytes: result.imageBytes!),
+    );
+  }
+
   Future<void> _handleExport() async {
     setState(() {
       _isExporting = true;
       _statusMessage = 'Export is running...';
     });
 
-    final request = ExportRequest(
-      slotPaths: _composerController.slots.map((slot) => slot.assetPath).toList(growable: false),
-      exportsDirectory: _paths.exportsDirectory,
-      rows: _selectedTemplate.rows,
-      columns: _selectedTemplate.columns,
-    );
-    final result = await _exportService.export(request);
+    final result = await _exportService.export(_buildExportRequest());
 
     if (!mounted) return;
     setState(() {
@@ -249,7 +276,9 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                             const SizedBox(height: 12),
                             ExportActions(
                               isExporting: _isExporting,
+                              isPreviewing: _isPreviewing,
                               onExport: _handleExport,
+                              onPreview: _handlePreview,
                               onReset: () {
                                 _composerController.resetAll();
                                 setState(() {
