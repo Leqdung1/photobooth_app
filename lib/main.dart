@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'core/config/app_paths.dart';
 import 'core/config/startup_validator.dart';
 import 'features/composer/application/composer_controller.dart';
+import 'features/composer/domain/frame_template.dart';
 import 'features/composer/presentation/composer_grid.dart';
 import 'features/composer/presentation/preview_panel.dart';
 import 'features/export/application/export_service.dart';
@@ -55,6 +56,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
 
   String? _selectedAssetId;
   int _selectedSlot = 1;
+  FrameTemplate _selectedTemplate = FrameTemplate.oneByTwo;
   String? _statusMessage;
   bool _initializing = true;
   bool _isExporting = false;
@@ -107,6 +109,8 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     final request = ExportRequest(
       slotPaths: _composerController.slots.map((slot) => slot.assetPath).toList(growable: false),
       exportsDirectory: _paths.exportsDirectory,
+      rows: _selectedTemplate.rows,
+      columns: _selectedTemplate.columns,
     );
     final result = await _exportService.export(request);
 
@@ -163,11 +167,38 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                   children: [
                     Row(
                       children: [
+                        const Text('Frame:'),
+                        const SizedBox(width: 8),
+                        DropdownButton<String>(
+                          value: _selectedTemplate.id,
+                          items: FrameTemplate.presets
+                              .map(
+                                (template) => DropdownMenuItem<String>(
+                                  value: template.id,
+                                  child: Text(template.label),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            final template = FrameTemplate.presets.firstWhere((item) => item.id == value);
+                            _composerController.setTemplate(template);
+                            setState(() {
+                              _selectedTemplate = template;
+                              _selectedSlot = 1;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 16),
                         const Text('Target slot:'),
                         const SizedBox(width: 8),
                         DropdownButton<int>(
                           value: _selectedSlot,
-                          items: const [1, 2, 3, 4]
+                          items: List<int>.generate(
+                            _composerController.slots.length,
+                            (index) => index + 1,
+                            growable: false,
+                          )
                               .map((slot) => DropdownMenuItem<int>(value: slot, child: Text('Slot $slot')))
                               .toList(growable: false),
                           onChanged: (value) {
@@ -185,12 +216,13 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             SizedBox(
-                              height: 360,
+                              height: 420,
                               child: AnimatedBuilder(
                                 animation: _composerController,
                                 builder: (_, __) => ComposerGrid(
                                   slots: _composerController.slots,
                                   selectedSlot: _selectedSlot,
+                                  columns: _selectedTemplate.columns,
                                   onSlotSelected: (slot) {
                                     setState(() {
                                       _selectedSlot = slot;
@@ -205,10 +237,13 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                             ),
                             const SizedBox(height: 12),
                             SizedBox(
-                              height: 200,
+                              height: 280,
                               child: AnimatedBuilder(
                                 animation: _composerController,
-                                builder: (_, __) => PreviewPanel(slots: _composerController.slots),
+                                builder: (_, __) => PreviewPanel(
+                                  slots: _composerController.slots,
+                                  columns: _selectedTemplate.columns,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 12),
