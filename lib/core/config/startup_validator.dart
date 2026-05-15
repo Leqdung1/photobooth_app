@@ -15,10 +15,22 @@ class StartupValidator {
   Future<StartupValidationResult> ensureFolders(AppPaths paths) async {
     final messages = <String>[];
 
-    for (final folder in [paths.inboxDirectory, paths.exportsDirectory, paths.templatesDirectory]) {
+    final folders = <String, bool>{
+      paths.inboxDirectory: _isUnderRoot(paths.inboxDirectory, paths.rootDirectory),
+      paths.exportsDirectory: true,
+      paths.templatesDirectory: true,
+    };
+
+    for (final entry in folders.entries) {
+      final folder = entry.key;
+      final createIfMissing = entry.value;
       final directory = Directory(folder);
       try {
         if (!await directory.exists()) {
+          if (!createIfMissing) {
+            messages.add('Inbox folder not found: $folder');
+            continue;
+          }
           await directory.create(recursive: true);
           messages.add('Created $folder');
         }
@@ -33,5 +45,11 @@ class StartupValidator {
     }
 
     return StartupValidationResult(success: !hasError, messages: messages);
+  }
+
+  bool _isUnderRoot(String folder, String root) {
+    final normalizedFolder = folder.replaceAll('/', '\\').toLowerCase();
+    final normalizedRoot = root.replaceAll('/', '\\').toLowerCase();
+    return normalizedFolder.startsWith('$normalizedRoot\\');
   }
 }

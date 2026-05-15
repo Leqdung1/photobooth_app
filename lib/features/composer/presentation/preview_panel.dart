@@ -11,12 +11,10 @@ class PreviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: GridView.count(
-        crossAxisCount: 2,
-        physics: const NeverScrollableScrollPhysics(),
-        children: slots
+    return GridView.count(
+      crossAxisCount: 2,
+      physics: const NeverScrollableScrollPhysics(),
+      children: slots
             .map(
               (slot) => Container(
                 margin: const EdgeInsets.all(2),
@@ -31,7 +29,6 @@ class PreviewPanel extends StatelessWidget {
               ),
             )
             .toList(growable: false),
-      ),
     );
   }
 }

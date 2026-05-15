@@ -41,7 +41,9 @@ class PhotoBoothHomePage extends StatefulWidget {
 }
 
 class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
-  final _paths = AppPaths.defaultWindows();
+  static const _inboxDirectory = r'C:\Users\ASUS\OneDrive\Máy tính\pù_luông';
+
+  final _paths = AppPaths.defaultWindows(inboxDirectory: _inboxDirectory);
   final _startupValidator = const StartupValidator();
   final _watchService = FolderWatchService();
   final _thumbnailService = const ThumbnailService();
@@ -129,6 +131,8 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final panelHeight = MediaQuery.sizeOf(context).height - kToolbarHeight - 24;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Photo Booth MVP')),
       body: Padding(
@@ -138,6 +142,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
           children: [
             SizedBox(
               width: 320,
+              height: panelHeight,
               child: GalleryPanel(
                 assets: _assets,
                 selectedAssetId: _selectedAssetId,
@@ -151,64 +156,79 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text('Target slot:'),
-                      const SizedBox(width: 8),
-                      DropdownButton<int>(
-                        value: _selectedSlot,
-                        items: const [1, 2, 3, 4]
-                            .map((slot) => DropdownMenuItem<int>(value: slot, child: Text('Slot $slot')))
-                            .toList(growable: false),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _selectedSlot = value;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  SizedBox(
-                    height: 360,
-                    child: AnimatedBuilder(
-                      animation: _composerController,
-                      builder: (_, __) => ComposerGrid(
-                        slots: _composerController.slots,
-                        selectedSlot: _selectedSlot,
-                        onSlotSelected: (slot) {
-                          setState(() {
-                            _selectedSlot = slot;
-                          });
-                        },
-                        onClearSlot: (slot) {
-                          _composerController.clearSlot(slot);
-                          setState(() {});
-                        },
+              child: SizedBox(
+                height: panelHeight,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('Target slot:'),
+                        const SizedBox(width: 8),
+                        DropdownButton<int>(
+                          value: _selectedSlot,
+                          items: const [1, 2, 3, 4]
+                              .map((slot) => DropdownMenuItem<int>(value: slot, child: Text('Slot $slot')))
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _selectedSlot = value;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 360,
+                              child: AnimatedBuilder(
+                                animation: _composerController,
+                                builder: (_, __) => ComposerGrid(
+                                  slots: _composerController.slots,
+                                  selectedSlot: _selectedSlot,
+                                  onSlotSelected: (slot) {
+                                    setState(() {
+                                      _selectedSlot = slot;
+                                    });
+                                  },
+                                  onClearSlot: (slot) {
+                                    _composerController.clearSlot(slot);
+                                    setState(() {});
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              height: 200,
+                              child: AnimatedBuilder(
+                                animation: _composerController,
+                                builder: (_, __) => PreviewPanel(slots: _composerController.slots),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ExportActions(
+                              isExporting: _isExporting,
+                              onExport: _handleExport,
+                              onReset: () {
+                                _composerController.resetAll();
+                                setState(() {
+                                  _statusMessage = 'Slots reset.';
+                                });
+                              },
+                              statusMessage: _statusMessage,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  AnimatedBuilder(
-                    animation: _composerController,
-                    builder: (_, __) => PreviewPanel(slots: _composerController.slots),
-                  ),
-                  const SizedBox(height: 12),
-                  ExportActions(
-                    isExporting: _isExporting,
-                    onExport: _handleExport,
-                    onReset: () {
-                      _composerController.resetAll();
-                      setState(() {
-                        _statusMessage = 'Slots reset.';
-                      });
-                    },
-                    statusMessage: _statusMessage,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

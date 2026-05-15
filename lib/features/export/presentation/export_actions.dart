@@ -31,7 +31,11 @@ class ExportActions extends StatelessWidget {
         ),
         if (statusMessage != null) ...[
           const SizedBox(height: 8),
-          Text(statusMessage!),
+          Text(
+            statusMessage!,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ],
     );

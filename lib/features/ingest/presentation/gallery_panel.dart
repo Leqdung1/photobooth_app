@@ -21,7 +21,7 @@ class GalleryPanel extends StatelessWidget {
     return Container(
       color: Colors.grey.shade100,
       child: assets.isEmpty
-          ? const Center(child: Text('Inbox is empty'))
+          ? const Center(child: Text('Chưa có ảnh trong thư mục'))
           : ListView.separated(
               itemCount: assets.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
@@ -39,8 +39,16 @@ class GalleryPanel extends StatelessWidget {
                       errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
                     ),
                   ),
-                  title: Text(asset.path.split('\\').last),
-                  subtitle: Text(asset.createdAt.toIso8601String()),
+                  title: Text(
+                    asset.path.split(Platform.pathSeparator).last,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    asset.createdAt.toIso8601String(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   onTap: () => onAssetSelected(asset),
                 );
               },
