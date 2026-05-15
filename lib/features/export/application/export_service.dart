@@ -53,7 +53,7 @@ class ExportService {
     final stamp = DateTime.now().toIso8601String().replaceAll(':', '-').replaceAll('.', '-');
     var counter = 1;
     while (true) {
-      final candidate = p.join(exportsDirectory, 'final_$stamp_$counter.jpg');
+      final candidate = p.join(exportsDirectory, 'final_${stamp}_$counter.jpg');
       if (!File(candidate).existsSync()) {
         return candidate;
       }

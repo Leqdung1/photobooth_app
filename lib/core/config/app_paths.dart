@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 class AppPaths {
-  AppPaths({required this.rootDirectory}) : rootDirectory = _normalize(rootDirectory);
+  AppPaths({required String rootDirectory})
+      : rootDirectory = _normalize(rootDirectory);
 
   final String rootDirectory;
 
