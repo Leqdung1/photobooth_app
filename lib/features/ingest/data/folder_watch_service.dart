@@ -12,6 +12,10 @@ class FolderWatchService {
 
   final Set<String> _seenPaths = <String>{};
 
+  void resetSeen() {
+    _seenPaths.clear();
+  }
+
   Stream<PhotoAsset> watch(String folderPath) async* {
     final directory = Directory(folderPath);
     if (!await directory.exists()) {

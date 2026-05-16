@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import 'core/config/app_paths.dart';
+import 'core/config/app_settings_repository.dart';
 import 'core/config/startup_validator.dart';
 import 'features/composer/application/composer_controller.dart';
 import 'features/composer/domain/frame_template.dart';
@@ -47,9 +50,8 @@ class PhotoBoothHomePage extends StatefulWidget {
 }
 
 class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
-  static const _inboxDirectory = r'C:\Users\ASUS\OneDrive\Máy tính\pù_luông';
-
-  final _paths = AppPaths.defaultWindows(inboxDirectory: _inboxDirectory);
+  late AppPaths _paths;
+  final _settingsRepository = const AppSettingsRepository();
   final _startupValidator = const StartupValidator();
   final _watchService = FolderWatchService();
   final _thumbnailService = const ThumbnailService();
@@ -78,6 +80,30 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   }
 
   Future<void> _bootstrap() async {
+    final settings = await _settingsRepository.load();
+    final initialInbox = settings.inboxDirectory ?? AppPaths.defaultInboxDirectoryWindows();
+    _paths = AppPaths.defaultWindows(inboxDirectory: initialInbox);
+
+    await _restartWatch();
+
+    if (!mounted) return;
+    setState(() {
+      _initializing = false;
+    });
+  }
+
+  Future<void> _restartWatch() async {
+    await _watchSubscription?.cancel();
+    _watchSubscription = null;
+    _watchService.resetSeen();
+    if (mounted) {
+      setState(() {
+        _assets.clear();
+      });
+    } else {
+      _assets.clear();
+    }
+
     final validation = await _startupValidator.ensureFolders(_paths);
     _statusMessage = validation.messages.join('\n');
 
@@ -96,11 +122,41 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
         });
       });
     }
+  }
 
-    if (!mounted) return;
+  Future<void> _pickInboxFolder() async {
     setState(() {
-      _initializing = false;
+      _statusMessage = 'Đang chọn thư mục ảnh nhận...';
     });
+
+    try {
+      final selected = await getDirectoryPath(
+        initialDirectory: Directory(_paths.inboxDirectory).existsSync() ? _paths.inboxDirectory : null,
+        confirmButtonText: 'Chọn thư mục này',
+      );
+      if (selected == null || selected.trim().isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _statusMessage = 'Đã hủy chọn thư mục.';
+        });
+        return;
+      }
+
+      final next = AppPaths.defaultWindows(inboxDirectory: selected);
+      await _settingsRepository.save(AppSettings(inboxDirectory: selected));
+      _paths = next;
+      await _restartWatch();
+
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = 'Đã đổi thư mục nhận ảnh: ${_paths.inboxDirectory}';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage = 'Không thể chọn thư mục: $error';
+      });
+    }
   }
 
   @override
@@ -195,10 +251,48 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     final panelHeight = MediaQuery.sizeOf(context).height - kToolbarHeight - 24 - 56;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Photo Booth MVP')),
+      appBar: AppBar(
+        title: const Text('Photo Booth MVP'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: _pickInboxFolder,
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Chọn thư mục ảnh'),
+            ),
+          ),
+        ],
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.folder, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Thư mục nhận ảnh: ${_paths.inboxDirectory}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: _pickInboxFolder,
+                    icon: const Icon(Icons.sync_alt, size: 16),
+                    label: const Text('Đổi thư mục'),
+                  ),
+                ],
+              ),
+            ),
+          ),
           Material(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: Padding(

@@ -50,6 +50,27 @@ class AppPaths {
     );
   }
 
+  static String defaultInboxDirectoryWindows() {
+    final oneDrive = Platform.environment['OneDrive'] ?? Platform.environment['OneDriveCommercial'];
+    if (oneDrive != null && oneDrive.trim().isNotEmpty) {
+      final oneDrivePictures = p.normalize(p.join(oneDrive.trim(), 'Pictures'));
+      if (Directory(oneDrivePictures).existsSync()) {
+        return oneDrivePictures;
+      }
+    }
+
+    final userProfile = Platform.environment['USERPROFILE'];
+    if (userProfile != null && userProfile.trim().isNotEmpty) {
+      final pictures = p.normalize(p.join(userProfile.trim(), 'Pictures'));
+      if (Directory(pictures).existsSync()) {
+        return pictures;
+      }
+      return pictures;
+    }
+
+    return p.normalize(p.join(Directory.current.path, 'inbox'));
+  }
+
   /// OneDrive `PhotoBoothSync` when available; otherwise `[root]/exports` under PhotoStudio.
   static ({String path, bool usesOneDrive}) _defaultExportsDirectory(String photoStudioRoot) {
     final oneDrive = Platform.environment['OneDrive'] ?? Platform.environment['OneDriveCommercial'];
