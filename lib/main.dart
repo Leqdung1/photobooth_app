@@ -9,8 +9,11 @@ import 'features/composer/domain/frame_template.dart';
 import 'features/composer/presentation/composer_grid.dart';
 import 'features/composer/presentation/preview_panel.dart';
 import 'features/export/application/export_service.dart';
+import 'features/export/application/phone_transfer_service.dart';
+import 'features/export/application/windows_android_transfer_service.dart';
 import 'features/export/application/windows_print_service.dart';
 import 'features/export/domain/export_request.dart';
+import 'features/export/domain/phone_transfer_request.dart';
 import 'features/export/presentation/export_actions.dart';
 import 'features/export/presentation/export_preview_dialog.dart';
 import 'features/ingest/data/folder_watch_service.dart';
@@ -44,7 +47,7 @@ class PhotoBoothHomePage extends StatefulWidget {
 }
 
 class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
-  static const _inboxDirectory = r'C:\Users\ASUS\OneDrive\Pictures\2026_05_16';
+  static const _inboxDirectory = r'C:\Users\ASUS\OneDrive\Máy tính\pù_luông';
 
   final _paths = AppPaths.defaultWindows(inboxDirectory: _inboxDirectory);
   final _startupValidator = const StartupValidator();
@@ -52,6 +55,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   final _thumbnailService = const ThumbnailService();
   final _composerController = ComposerController();
   final _exportService = ExportService();
+  final PhoneTransferService _phoneTransferService = const WindowsAndroidTransferService();
   final _printService = const WindowsPrintService();
 
   final List<PhotoAsset> _assets = <PhotoAsset>[];
@@ -65,6 +69,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   bool _isExporting = false;
   bool _isPreviewing = false;
   bool _printAfterExport = true;
+  bool _autoTransferToPhone = true;
 
   @override
   void initState() {
@@ -147,9 +152,16 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     if (!mounted) return;
     var message = result.success ? 'Exported: ${result.filePath}' : (result.error ?? 'Export failed');
 
+    if (result.success && result.filePath != null && _autoTransferToPhone) {
+      final transferResult = await _phoneTransferService.transfer(
+        PhoneTransferRequest(sourceFilePath: result.filePath!),
+      );
+      message = '$message\nUSB transfer: ${transferResult.message}';
+    }
+
     if (result.success && result.filePath != null && _printAfterExport) {
       try {
-        await _printService.printJpegFile(result.filePath!);
+        await _printService.printImageFile(result.filePath!);
       } catch (error, stackTrace) {
         assert(() {
           debugPrint('Print failed: $error\n$stackTrace');
@@ -180,147 +192,182 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final panelHeight = MediaQuery.sizeOf(context).height - kToolbarHeight - 24;
+    final panelHeight = MediaQuery.sizeOf(context).height - kToolbarHeight - 24 - 56;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Photo Booth MVP')),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 320,
-              height: panelHeight,
-              child: GalleryPanel(
-                assets: _assets,
-                selectedAssetId: _selectedAssetId,
-                onAssetSelected: (asset) {
-                  setState(() {
-                    _selectedAssetId = asset.id;
-                  });
-                  _assignSelectedAssetToSlot();
-                },
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    _paths.exportsUseOneDriveSync ? Icons.cloud_sync_outlined : Icons.phone_android_outlined,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _paths.phoneSyncHint,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
-                height: panelHeight,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('Frame:'),
-                        const SizedBox(width: 8),
-                        DropdownButton<String>(
-                          value: _selectedTemplate.id,
-                          items: FrameTemplate.presets
-                              .map(
-                                (template) => DropdownMenuItem<String>(
-                                  value: template.id,
-                                  child: Text(template.label),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            final template = FrameTemplate.presets.firstWhere((item) => item.id == value);
-                            _composerController.setTemplate(template);
-                            setState(() {
-                              _selectedTemplate = template;
-                              _selectedSlot = 1;
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 16),
-                        const Text('Target slot:'),
-                        const SizedBox(width: 8),
-                        DropdownButton<int>(
-                          value: _selectedSlot,
-                          items: List<int>.generate(
-                            _composerController.slots.length,
-                            (index) => index + 1,
-                            growable: false,
-                          )
-                              .map((slot) => DropdownMenuItem<int>(value: slot, child: Text('Slot $slot')))
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setState(() {
-                              _selectedSlot = value;
-                            });
-                          },
-                        ),
-                      ],
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    height: panelHeight,
+                    child: GalleryPanel(
+                      assets: _assets,
+                      selectedAssetId: _selectedAssetId,
+                      onAssetSelected: (asset) {
+                        setState(() {
+                          _selectedAssetId = asset.id;
+                        });
+                        _assignSelectedAssetToSlot();
+                      },
                     ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              height: 420,
-                              child: AnimatedBuilder(
-                                animation: _composerController,
-                                builder: (_, __) => ComposerGrid(
-                                  slots: _composerController.slots,
-                                  selectedSlot: _selectedSlot,
-                                  columns: _selectedTemplate.columns,
-                                  onSlotSelected: (slot) {
-                                    setState(() {
-                                      _selectedSlot = slot;
-                                    });
-                                  },
-                                  onClearSlot: (slot) {
-                                    _composerController.clearSlot(slot);
-                                    setState(() {});
-                                  },
-                                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: panelHeight,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('Frame:'),
+                              const SizedBox(width: 8),
+                              DropdownButton<String>(
+                                value: _selectedTemplate.id,
+                                items: FrameTemplate.presets
+                                    .map(
+                                      (template) => DropdownMenuItem<String>(
+                                        value: template.id,
+                                        child: Text(template.label),
+                                      ),
+                                    )
+                                    .toList(growable: false),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  final template = FrameTemplate.presets.firstWhere((item) => item.id == value);
+                                  _composerController.setTemplate(template);
+                                  setState(() {
+                                    _selectedTemplate = template;
+                                    _selectedSlot = 1;
+                                  });
+                                },
+                              ),
+                              const SizedBox(width: 16),
+                              const Text('Target slot:'),
+                              const SizedBox(width: 8),
+                              DropdownButton<int>(
+                                value: _selectedSlot,
+                                items: List<int>.generate(
+                                  _composerController.slots.length,
+                                  (index) => index + 1,
+                                  growable: false,
+                                )
+                                    .map((slot) => DropdownMenuItem<int>(value: slot, child: Text('Slot $slot')))
+                                    .toList(growable: false),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    _selectedSlot = value;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    height: 420,
+                                    child: AnimatedBuilder(
+                                      animation: _composerController,
+                                      builder: (_, __) => ComposerGrid(
+                                        slots: _composerController.slots,
+                                        selectedSlot: _selectedSlot,
+                                        columns: _selectedTemplate.columns,
+                                        onSlotSelected: (slot) {
+                                          setState(() {
+                                            _selectedSlot = slot;
+                                          });
+                                        },
+                                        onClearSlot: (slot) {
+                                          _composerController.clearSlot(slot);
+                                          setState(() {});
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    height: 280,
+                                    child: AnimatedBuilder(
+                                      animation: _composerController,
+                                      builder: (_, __) => PreviewPanel(
+                                        slots: _composerController.slots,
+                                        columns: _selectedTemplate.columns,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ExportActions(
+                                    isExporting: _isExporting,
+                                    isPreviewing: _isPreviewing,
+                                    printAfterExport: _printAfterExport,
+                                    autoTransferToPhone: _autoTransferToPhone,
+                                    onPrintAfterExportChanged: (value) {
+                                      setState(() {
+                                        _printAfterExport = value;
+                                      });
+                                    },
+                                    onAutoTransferToPhoneChanged: (value) {
+                                      setState(() {
+                                        _autoTransferToPhone = value;
+                                      });
+                                    },
+                                    onExport: _handleExport,
+                                    onPreview: _handlePreview,
+                                    onReset: () {
+                                      _composerController.resetAll();
+                                      setState(() {
+                                        _statusMessage = 'Slots reset.';
+                                      });
+                                    },
+                                    statusMessage: _statusMessage,
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              height: 280,
-                              child: AnimatedBuilder(
-                                animation: _composerController,
-                                builder: (_, __) => PreviewPanel(
-                                  slots: _composerController.slots,
-                                  columns: _selectedTemplate.columns,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            ExportActions(
-                              isExporting: _isExporting,
-                              isPreviewing: _isPreviewing,
-                              printAfterExport: _printAfterExport,
-                              onPrintAfterExportChanged: (value) {
-                                setState(() {
-                                  _printAfterExport = value;
-                                });
-                              },
-                              onExport: _handleExport,
-                              onPreview: _handlePreview,
-                              onReset: () {
-                                _composerController.resetAll();
-                                setState(() {
-                                  _statusMessage = 'Slots reset.';
-                                });
-                              },
-                              statusMessage: _statusMessage,
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

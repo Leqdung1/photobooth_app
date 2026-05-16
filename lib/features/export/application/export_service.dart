@@ -31,7 +31,7 @@ class ExportService {
     }
     return PreviewResult(
       success: true,
-      imageBytes: Uint8List.fromList(img.encodeJpg(rendered.canvas!, quality: 92)),
+      imageBytes: Uint8List.fromList(img.encodePng(rendered.canvas!)),
     );
   }
 
@@ -46,7 +46,7 @@ class ExportService {
 
     final outputPath = _buildOutputPath(request.exportsDirectory);
     final outFile = File(outputPath);
-    await outFile.writeAsBytes(img.encodeJpg(rendered.canvas!, quality: 92));
+    await outFile.writeAsBytes(img.encodePng(rendered.canvas!));
 
     return ExportResult(success: true, filePath: outputPath);
   }
@@ -136,7 +136,7 @@ class ExportService {
     final stamp = DateTime.now().toIso8601String().replaceAll(':', '-').replaceAll('.', '-');
     var counter = 1;
     while (true) {
-      final candidate = p.join(exportsDirectory, 'final_${stamp}_$counter.jpg');
+      final candidate = p.join(exportsDirectory, 'final_${stamp}_$counter.png');
       if (!File(candidate).existsSync()) {
         return candidate;
       }

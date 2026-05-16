@@ -6,7 +6,9 @@ class ExportActions extends StatelessWidget {
     required this.isExporting,
     required this.isPreviewing,
     required this.printAfterExport,
+    required this.autoTransferToPhone,
     required this.onPrintAfterExportChanged,
+    required this.onAutoTransferToPhoneChanged,
     required this.onExport,
     required this.onPreview,
     required this.onReset,
@@ -16,7 +18,9 @@ class ExportActions extends StatelessWidget {
   final bool isExporting;
   final bool isPreviewing;
   final bool printAfterExport;
+  final bool autoTransferToPhone;
   final ValueChanged<bool> onPrintAfterExportChanged;
+  final ValueChanged<bool> onAutoTransferToPhoneChanged;
   final VoidCallback onExport;
   final VoidCallback onPreview;
   final VoidCallback onReset;
@@ -54,6 +58,21 @@ class ExportActions extends StatelessWidget {
                   Switch(
                     value: printAfterExport,
                     onChanged: isExporting || isPreviewing ? null : onPrintAfterExportChanged,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Tooltip(
+              message: 'Tự thử gửi ảnh sang Android qua cáp USB (MTP/File Transfer).',
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Gửi sang điện thoại'),
+                  const SizedBox(width: 4),
+                  Switch(
+                    value: autoTransferToPhone,
+                    onChanged: isExporting || isPreviewing ? null : onAutoTransferToPhoneChanged,
                   ),
                 ],
               ),
