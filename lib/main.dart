@@ -9,6 +9,7 @@ import 'features/composer/domain/frame_template.dart';
 import 'features/composer/presentation/composer_grid.dart';
 import 'features/composer/presentation/preview_panel.dart';
 import 'features/export/application/export_service.dart';
+import 'features/export/application/windows_print_service.dart';
 import 'features/export/domain/export_request.dart';
 import 'features/export/presentation/export_actions.dart';
 import 'features/export/presentation/export_preview_dialog.dart';
@@ -43,7 +44,7 @@ class PhotoBoothHomePage extends StatefulWidget {
 }
 
 class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
-  static const _inboxDirectory = r'C:\Users\ASUS\OneDrive\Máy tính\pù_luông';
+  static const _inboxDirectory = r'C:\Users\ASUS\OneDrive\Pictures\2026_05_16';
 
   final _paths = AppPaths.defaultWindows(inboxDirectory: _inboxDirectory);
   final _startupValidator = const StartupValidator();
@@ -51,6 +52,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   final _thumbnailService = const ThumbnailService();
   final _composerController = ComposerController();
   final _exportService = ExportService();
+  final _printService = const WindowsPrintService();
 
   final List<PhotoAsset> _assets = <PhotoAsset>[];
   StreamSubscription<PhotoAsset>? _watchSubscription;
@@ -62,6 +64,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   bool _initializing = true;
   bool _isExporting = false;
   bool _isPreviewing = false;
+  bool _printAfterExport = true;
 
   @override
   void initState() {
@@ -142,9 +145,24 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     final result = await _exportService.export(_buildExportRequest());
 
     if (!mounted) return;
+    var message = result.success ? 'Exported: ${result.filePath}' : (result.error ?? 'Export failed');
+
+    if (result.success && result.filePath != null && _printAfterExport) {
+      try {
+        await _printService.printJpegFile(result.filePath!);
+      } catch (error, stackTrace) {
+        assert(() {
+          debugPrint('Print failed: $error\n$stackTrace');
+          return true;
+        }());
+        message = '$message\n(Lỗi in: $error)';
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       _isExporting = false;
-      _statusMessage = result.success ? 'Exported: ${result.filePath}' : (result.error ?? 'Export failed');
+      _statusMessage = message;
     });
   }
 
@@ -277,6 +295,12 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                             ExportActions(
                               isExporting: _isExporting,
                               isPreviewing: _isPreviewing,
+                              printAfterExport: _printAfterExport,
+                              onPrintAfterExportChanged: (value) {
+                                setState(() {
+                                  _printAfterExport = value;
+                                });
+                              },
                               onExport: _handleExport,
                               onPreview: _handlePreview,
                               onReset: () {

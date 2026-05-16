@@ -5,6 +5,8 @@ class ExportActions extends StatelessWidget {
     super.key,
     required this.isExporting,
     required this.isPreviewing,
+    required this.printAfterExport,
+    required this.onPrintAfterExportChanged,
     required this.onExport,
     required this.onPreview,
     required this.onReset,
@@ -13,6 +15,8 @@ class ExportActions extends StatelessWidget {
 
   final bool isExporting;
   final bool isPreviewing;
+  final bool printAfterExport;
+  final ValueChanged<bool> onPrintAfterExportChanged;
   final VoidCallback onExport;
   final VoidCallback onPreview;
   final VoidCallback onReset;
@@ -39,13 +43,28 @@ class ExportActions extends StatelessWidget {
               onPressed: isExporting || isPreviewing ? null : onReset,
               child: const Text('Reset'),
             ),
+            const Spacer(),
+            Tooltip(
+              message: 'Sau khi export, mở hộp thoại in Windows (spooler → driver máy in)',
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('In sau export'),
+                  const SizedBox(width: 4),
+                  Switch(
+                    value: printAfterExport,
+                    onChanged: isExporting || isPreviewing ? null : onPrintAfterExportChanged,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         if (statusMessage != null) ...[
           const SizedBox(height: 8),
           Text(
             statusMessage!,
-            maxLines: 3,
+            maxLines: 6,
             overflow: TextOverflow.ellipsis,
           ),
         ],
