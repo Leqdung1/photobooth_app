@@ -22,15 +22,6 @@ class FolderWatchService {
       await directory.create(recursive: true);
     }
 
-    await for (final entity in directory.list()) {
-      if (entity is File) {
-        final asset = await _tryBuildAsset(entity.path);
-        if (asset != null) {
-          yield asset;
-        }
-      }
-    }
-
     await for (final event in directory.watch(events: FileSystemEvent.create | FileSystemEvent.modify)) {
       if (event is! FileSystemCreateEvent && event is! FileSystemModifyEvent) {
         continue;

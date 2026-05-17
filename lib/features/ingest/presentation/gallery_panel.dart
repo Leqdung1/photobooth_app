@@ -35,8 +35,10 @@ class GalleryPanel extends StatelessWidget {
                     height: 56,
                     child: Image.file(
                       File(asset.thumbnailPath ?? asset.path),
+                      key: ValueKey(asset.thumbnailPath ?? asset.path),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported),
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.image_not_supported),
                     ),
                   ),
                   title: Text(

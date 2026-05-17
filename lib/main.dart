@@ -53,15 +53,16 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   late AppPaths _paths;
   final _settingsRepository = const AppSettingsRepository();
   final _startupValidator = const StartupValidator();
-  final _watchService = FolderWatchService();
+  FolderWatchService _watchService = FolderWatchService();
   final _thumbnailService = const ThumbnailService();
   final _composerController = ComposerController();
   final _exportService = ExportService();
   final PhoneTransferService _phoneTransferService = const WindowsAndroidTransferService();
   final _printService = const WindowsPrintService();
 
-  final List<PhotoAsset> _assets = <PhotoAsset>[];
+  List<PhotoAsset> _assets = <PhotoAsset>[];
   StreamSubscription<PhotoAsset>? _watchSubscription;
+  int _folderRequestId = 0;
 
   String? _selectedAssetId;
   int _selectedSlot = 1;
@@ -93,35 +94,171 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   }
 
   Future<void> _restartWatch() async {
-    await _watchSubscription?.cancel();
+    final requestId = ++_folderRequestId;
+
+    final previousSubscription = _watchSubscription;
     _watchSubscription = null;
+    if (previousSubscription != null) {
+      unawaited(
+        previousSubscription
+            .cancel()
+            .timeout(const Duration(seconds: 1), onTimeout: () {}),
+      );
+    }
+    _watchService = FolderWatchService();
     _watchService.resetSeen();
+
     if (mounted) {
       setState(() {
-        _assets.clear();
+        _assets = <PhotoAsset>[];
       });
     } else {
-      _assets.clear();
+      _assets = <PhotoAsset>[];
+    }
+
+    final inboxDir = _paths.inboxDirectory;
+
+    // Immediately reflect the folder switch in UI and clear the list.
+    if (mounted) {
+      setState(() {
+        _statusMessage = 'Dang ap dung thu muc moi: $inboxDir';
+        _assets = <PhotoAsset>[];
+      });
+    } else {
+      _assets = <PhotoAsset>[];
     }
 
     final validation = await _startupValidator.ensureFolders(_paths);
-    _statusMessage = validation.messages.join('\n');
+    if (requestId != _folderRequestId) return;
+
+    if (mounted) {
+      setState(() {
+        _statusMessage = validation.messages.join('\n');
+      });
+    } else {
+      _statusMessage = validation.messages.join('\n');
+    }
 
     if (validation.success) {
-      _watchSubscription = _watchService.watch(_paths.inboxDirectory).listen((asset) async {
-        final thumb = await _thumbnailService.generate(asset.path);
-        final enriched = asset.copyWith(thumbnailPath: thumb);
-        if (!mounted) return;
+      final loadedCount = await _loadExistingAssetsFromInbox(requestId: requestId);
+      if (requestId != _folderRequestId) return;
 
+      if (mounted) {
         setState(() {
-          final exists = _assets.any((item) => item.id == enriched.id);
-          if (!exists) {
-            _assets.add(enriched);
-            _assets.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          _statusMessage = 'Da doi thu muc: $inboxDir (tai $loadedCount anh).';
+        });
+      }
+
+      _watchSubscription = _watchService.watch(inboxDir).listen(
+        (asset) async {
+          if (requestId != _folderRequestId) return;
+
+          final thumb = await _thumbnailService.generate(asset.path);
+          if (requestId != _folderRequestId) return;
+
+          final enriched = asset.copyWith(thumbnailPath: thumb);
+          if (!mounted) return;
+
+          setState(() {
+            final exists = _assets.any((item) => item.id == enriched.id);
+            if (!exists) {
+              _assets = <PhotoAsset>[..._assets, enriched]
+                ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            }
+          });
+        },
+        onError: (Object error) {
+          if (!mounted) return;
+          setState(() {
+            _statusMessage = 'Lang nghe thu muc that bai ($inboxDir): $error';
+          });
+        },
+      );
+    }
+  }
+
+  Future<int> _loadExistingAssetsFromInbox({required int requestId}) async {
+    // Snapshot the target directory at call time to guard against races
+    // when the user switches folders quickly.
+    final targetDir = _paths.inboxDirectory;
+    final directory = Directory(targetDir);
+    if (!await directory.exists()) return 0;
+
+    final loaded = <PhotoAsset>[];
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is! File) continue;
+      final lower = entity.path.toLowerCase();
+      if (!(lower.endsWith('.jpg') ||
+          lower.endsWith('.jpeg') ||
+          lower.endsWith('.png') ||
+          lower.endsWith('.webp'))) {
+        continue;
+      }
+
+      try {
+        final stat = await entity.stat();
+        if (stat.size <= 0) continue;
+        loaded.add(
+          PhotoAsset(
+            id: entity.path,
+            path: entity.path,
+            createdAt: stat.modified,
+            thumbnailPath: null,
+          ),
+        );
+      } catch (_) {
+        // Skip broken file
+      }
+    }
+
+    loaded.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // If the user switched folders again while we were scanning, discard results.
+    if (!mounted ||
+        _paths.inboxDirectory != targetDir ||
+        requestId != _folderRequestId) {
+      return loaded.length;
+    }
+
+    setState(() {
+      _assets = List<PhotoAsset>.from(loaded);
+      _selectedAssetId = null;
+    });
+
+    // Generate thumbnails in the background so the gallery updates immediately
+    // without requiring an app reload.
+    unawaited(_generateThumbnailsForAssets(loaded, requestId: requestId));
+    return loaded.length;
+  }
+
+  Future<void> _generateThumbnailsForAssets(List<PhotoAsset> assets, {required int requestId}) async {
+    for (final asset in assets) {
+      if (requestId != _folderRequestId) return;
+
+      try {
+        final thumb = await _thumbnailService.generate(asset.path);
+        if (requestId != _folderRequestId) return;
+
+        if (!mounted) return;
+        setState(() {
+          final index = _assets.indexWhere((item) => item.id == asset.id);
+          if (index >= 0) {
+            final updated = List<PhotoAsset>.from(_assets);
+            updated[index] = updated[index].copyWith(thumbnailPath: thumb);
+            _assets = updated;
           }
         });
-      });
+      } catch (_) {
+        // Ignore thumbnail errors; original image path is still usable.
+      }
     }
+  }
+
+  Future<void> _refreshCurrentInbox() async {
+    if (!mounted) return;
+    setState(() {
+      _statusMessage = 'Đang quét lại thư mục hiện tại...';
+    });
+    await _restartWatch();
   }
 
   Future<void> _pickInboxFolder() async {
@@ -143,14 +280,14 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       }
 
       final next = AppPaths.defaultWindows(inboxDirectory: selected);
-      await _settingsRepository.save(AppSettings(inboxDirectory: selected));
-      _paths = next;
-      await _restartWatch();
-
       if (!mounted) return;
       setState(() {
-        _statusMessage = 'Đã đổi thư mục nhận ảnh: ${_paths.inboxDirectory}';
+        _paths = next;
+        _statusMessage = 'Đang áp dụng thư mục mới: ${_paths.inboxDirectory}';
       });
+
+      await _settingsRepository.save(AppSettings(inboxDirectory: selected));
+      await _restartWatch();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -251,19 +388,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     final panelHeight = MediaQuery.sizeOf(context).height - kToolbarHeight - 24 - 56;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Photo Booth MVP'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton.icon(
-              onPressed: _pickInboxFolder,
-              icon: const Icon(Icons.folder_open),
-              label: const Text('Chọn thư mục ảnh'),
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Photo Booth MVP')),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -285,31 +410,15 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
+                    onPressed: _refreshCurrentInbox,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Quét lại'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
                     onPressed: _pickInboxFolder,
                     icon: const Icon(Icons.sync_alt, size: 16),
                     label: const Text('Đổi thư mục'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Material(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    _paths.exportsUseOneDriveSync ? Icons.cloud_sync_outlined : Icons.phone_android_outlined,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _paths.phoneSyncHint,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
                   ),
                 ],
               ),
@@ -325,6 +434,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                     width: 320,
                     height: panelHeight,
                     child: GalleryPanel(
+                      key: ValueKey(_paths.inboxDirectory),
                       assets: _assets,
                       selectedAssetId: _selectedAssetId,
                       onAssetSelected: (asset) {
@@ -363,25 +473,6 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                                   setState(() {
                                     _selectedTemplate = template;
                                     _selectedSlot = 1;
-                                  });
-                                },
-                              ),
-                              const SizedBox(width: 16),
-                              const Text('Target slot:'),
-                              const SizedBox(width: 8),
-                              DropdownButton<int>(
-                                value: _selectedSlot,
-                                items: List<int>.generate(
-                                  _composerController.slots.length,
-                                  (index) => index + 1,
-                                  growable: false,
-                                )
-                                    .map((slot) => DropdownMenuItem<int>(value: slot, child: Text('Slot $slot')))
-                                    .toList(growable: false),
-                                onChanged: (value) {
-                                  if (value == null) return;
-                                  setState(() {
-                                    _selectedSlot = value;
                                   });
                                 },
                               ),
