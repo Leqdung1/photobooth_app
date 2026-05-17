@@ -253,14 +253,6 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     }
   }
 
-  Future<void> _refreshCurrentInbox() async {
-    if (!mounted) return;
-    setState(() {
-      _statusMessage = 'Đang quét lại thư mục hiện tại...';
-    });
-    await _restartWatch();
-  }
-
   Future<void> _pickInboxFolder() async {
     setState(() {
       _statusMessage = 'Đang chọn thư mục ảnh nhận...';
@@ -410,12 +402,6 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton.icon(
-                    onPressed: _refreshCurrentInbox,
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Quét lại'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
                     onPressed: _pickInboxFolder,
                     icon: const Icon(Icons.sync_alt, size: 16),
                     label: const Text('Đổi thư mục'),
@@ -534,11 +520,8 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                                     onPreview: _handlePreview,
                                     onReset: () {
                                       _composerController.resetAll();
-                                      setState(() {
-                                        _statusMessage = 'Slots reset.';
-                                      });
+                                      setState(() {});
                                     },
-                                    statusMessage: _statusMessage,
                                   ),
                                 ],
                               ),

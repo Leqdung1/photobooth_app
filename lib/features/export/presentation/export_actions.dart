@@ -12,7 +12,6 @@ class ExportActions extends StatelessWidget {
     required this.onExport,
     required this.onPreview,
     required this.onReset,
-    required this.statusMessage,
   });
 
   final bool isExporting;
@@ -24,7 +23,6 @@ class ExportActions extends StatelessWidget {
   final VoidCallback onExport;
   final VoidCallback onPreview;
   final VoidCallback onReset;
-  final String? statusMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -79,14 +77,6 @@ class ExportActions extends StatelessWidget {
             ),
           ],
         ),
-        if (statusMessage != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            statusMessage!,
-            maxLines: 6,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
       ],
     );
   }
