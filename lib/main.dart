@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import 'features/export/application/windows_print_service.dart';
 import 'features/export/domain/export_request.dart';
 import 'features/export/domain/phone_transfer_request.dart';
 import 'features/export/presentation/export_preview_dialog.dart';
+import 'features/export/presentation/preview_export_dialog.dart';
 import 'features/ingest/data/folder_watch_service.dart';
 import 'features/ingest/data/thumbnail_service.dart';
 import 'features/ingest/domain/photo_asset.dart';
@@ -334,6 +336,75 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     );
   }
 
+  Future<Uint8List?> _buildPreviewBytes() async {
+    final result = await _exportService.buildPreview(_buildExportRequest());
+    if (!result.success) {
+      return null;
+    }
+    return result.imageBytes;
+  }
+
+  Future<void> _handleExportWithSettings({required bool printAfterExport, required bool sendToMobile}) async {
+    setState(() {
+      _isExporting = true;
+    });
+
+    final result = await _exportService.export(_buildExportRequest());
+    if (!mounted) return;
+
+    var ok = result.success;
+    var message = ok ? 'Export successful' : (result.error ?? 'Export failed');
+
+    if (ok && result.filePath != null && sendToMobile) {
+      final transferResult = await _phoneTransferService.transfer(
+        PhoneTransferRequest(sourceFilePath: result.filePath!),
+      );
+      message = '$message\nMobile: ${transferResult.message}';
+      if (!transferResult.isSuccess) {
+        ok = false;
+      }
+    }
+
+    if (ok && result.filePath != null && printAfterExport) {
+      try {
+        await _printService.printImageFile(result.filePath!);
+      } catch (error) {
+        message = '$message\nPrint failed: $error';
+        ok = false;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isExporting = false;
+    });
+
+    _showBottomRightToast(context, title: ok ? 'Export Successful!' : 'Export Failed', message: message, ok: ok);
+  }
+
+  void _showBottomRightToast(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required bool ok,
+  }) {
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (context) {
+        return Positioned(
+          right: 20,
+          bottom: 20,
+          child: _ToastCard(title: title, message: message, ok: ok),
+        );
+      },
+    );
+
+    overlay.insert(entry);
+    Future<void>.delayed(const Duration(seconds: 4)).then((_) {
+      entry.remove();
+    });
+  }
+
   Future<void> _handleExport() async {
     setState(() {
       _isExporting = true;
@@ -555,7 +626,20 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                                   onPressed: (_isExporting || _isPreviewing)
                                       ? null
                                       : () async {
-                                          await _handlePreview();
+                                          await showDialog<bool>(
+                                            context: context,
+                                            builder: (context) => PreviewExportDialog(
+                                              buildPreview: _buildPreviewBytes,
+                                              onStartExport: ({required printAfterExport, required sendToMobile}) async {
+                                                await _handleExportWithSettings(
+                                                  printAfterExport: printAfterExport,
+                                                  sendToMobile: sendToMobile,
+                                                );
+                                              },
+                                              initialPrintAfterExport: _printAfterExport,
+                                              initialSendToMobile: _autoTransferToPhone,
+                                            ),
+                                          );
                                         },
                                   icon: const Icon(Icons.file_upload_outlined, size: 18),
                                   label: const Text('Preview & Export'),
@@ -696,6 +780,85 @@ class _TemplateMiniPreview extends StatelessWidget {
             color: const Color(0xFF1A284A),
             borderRadius: BorderRadius.circular(3),
             border: Border.all(color: const Color(0xFF415C95)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToastCard extends StatefulWidget {
+  const _ToastCard({required this.title, required this.message, required this.ok});
+
+  final String title;
+  final String message;
+  final bool ok;
+
+  @override
+  State<_ToastCard> createState() => _ToastCardState();
+}
+
+class _ToastCardState extends State<_ToastCard> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  )..forward();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _controller,
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+            .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut)),
+        child: Material(
+          elevation: 8,
+          borderRadius: BorderRadius.circular(12),
+          color: const Color(0xFF1F2F55),
+          child: Container(
+            width: 300,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: widget.ok ? const Color(0xFF3D9A68) : const Color(0xFFB04040)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  widget.ok ? Icons.check_circle_outline : Icons.error_outline,
+                  color: widget.ok ? const Color(0xFF5CC891) : const Color(0xFFE07070),
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: TextStyle(
+                          color: widget.ok ? const Color(0xFF5CC891) : const Color(0xFFE07070),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.message,
+                        style: const TextStyle(color: Color(0xFFB8C7EA), fontSize: 12, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

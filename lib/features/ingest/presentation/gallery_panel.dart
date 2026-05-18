@@ -30,29 +30,31 @@ class GalleryPanel extends StatelessWidget {
                 ),
               )
             : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 primary: false,
                 itemCount: assets.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final asset = assets[index];
                   final selected = asset.id == selectedAssetId;
                   final fileName = asset.path.split(Platform.pathSeparator).last;
                   return Material(
-                    color: selected
-                        ? const Color(0xFF2A3D72)
-                        : const Color(0xFF1D2B51),
-                    borderRadius: BorderRadius.circular(12),
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      selected: selected,
-                      title: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                            child: SizedBox(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => onAssetSelected(asset),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? const Color(0xFF2A3D72)
+                              : const Color(0xFF1D2B51),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
                               height: 140,
                               width: double.infinity,
                               child: Image.file(
@@ -63,35 +65,34 @@ class GalleryPanel extends StatelessWidget {
                                     const Center(child: Icon(Icons.image_not_supported)),
                               ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
-                            child: Text(
-                              fileName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFFE3ECFF),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11,
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
+                              child: Text(
+                                fileName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFFE3ECFF),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
                               ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-                            child: Text(
-                              asset.createdAt.toIso8601String(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFFA9BDE8),
-                                fontSize: 10,
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                              child: Text(
+                                asset.createdAt.toIso8601String(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFFA9BDE8),
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      onTap: () => onAssetSelected(asset),
                     ),
                   );
                 },
