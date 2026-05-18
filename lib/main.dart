@@ -17,7 +17,6 @@ import 'features/export/application/windows_android_transfer_service.dart';
 import 'features/export/application/windows_print_service.dart';
 import 'features/export/domain/export_request.dart';
 import 'features/export/domain/phone_transfer_request.dart';
-import 'features/export/presentation/export_actions.dart';
 import 'features/export/presentation/export_preview_dialog.dart';
 import 'features/ingest/data/folder_watch_service.dart';
 import 'features/ingest/data/thumbnail_service.dart';
@@ -36,7 +35,11 @@ class PhotoBoothApp extends StatelessWidget {
     return MaterialApp(
       title: 'Photo Booth',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.indigo,
+        scaffoldBackgroundColor: const Color(0xFFF3F5FA),
+      ),
       home: const PhotoBoothHomePage(),
     );
   }
@@ -73,6 +76,11 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   bool _isPreviewing = false;
   bool _printAfterExport = true;
   bool _autoTransferToPhone = true;
+
+  static const _bgColor = Color(0xFF0B1633);
+  static const _panelColor = Color(0xFF172344);
+  static const _panelBorder = Color(0xFF2A3A62);
+  static const _panelInner = Color(0xFF0F1D3D);
 
   @override
   void initState() {
@@ -121,7 +129,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     // Immediately reflect the folder switch in UI and clear the list.
     if (mounted) {
       setState(() {
-        _statusMessage = 'Dang ap dung thu muc moi: $inboxDir';
+        _statusMessage = null;
         _assets = <PhotoAsset>[];
       });
     } else {
@@ -133,10 +141,10 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
 
     if (mounted) {
       setState(() {
-        _statusMessage = validation.messages.join('\n');
+        _statusMessage = null;
       });
     } else {
-      _statusMessage = validation.messages.join('\n');
+      _statusMessage = null;
     }
 
     if (validation.success) {
@@ -145,7 +153,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
 
       if (mounted) {
         setState(() {
-          _statusMessage = 'Da doi thu muc: $inboxDir (tai $loadedCount anh).';
+          _statusMessage = null;
         });
       }
 
@@ -255,7 +263,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
 
   Future<void> _pickInboxFolder() async {
     setState(() {
-      _statusMessage = 'Đang chọn thư mục ảnh nhận...';
+      _statusMessage = null;
     });
 
     try {
@@ -266,7 +274,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       if (selected == null || selected.trim().isEmpty) {
         if (!mounted) return;
         setState(() {
-          _statusMessage = 'Đã hủy chọn thư mục.';
+          _statusMessage = null;
         });
         return;
       }
@@ -275,7 +283,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       if (!mounted) return;
       setState(() {
         _paths = next;
-        _statusMessage = 'Đang áp dụng thư mục mới: ${_paths.inboxDirectory}';
+        _statusMessage = null;
       });
 
       await _settingsRepository.save(AppSettings(inboxDirectory: selected));
@@ -371,40 +379,102 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     setState(() {});
   }
 
+  void _handleResetSlots() {
+    _composerController.resetAll();
+    setState(() {});
+  }
+
+  void _onPrintAfterExportChanged(bool value) {
+    setState(() {
+      _printAfterExport = value;
+    });
+  }
+
+  void _onAutoTransferToPhoneChanged(bool value) {
+    setState(() {
+      _autoTransferToPhone = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_initializing) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final panelHeight = MediaQuery.sizeOf(context).height - kToolbarHeight - 24 - 56;
+    final composerWidgets = <Widget>[
+      Card(
+        margin: EdgeInsets.zero,
+        color: _panelColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: _panelBorder),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1080),
+              child: SizedBox(
+                height: 660,
+                child: AnimatedBuilder(
+                  animation: _composerController,
+                  builder: (_, __) {
+                    return ComposerGrid(
+                      slots: _composerController.slots,
+                      selectedSlot: _selectedSlot,
+                      columns: _selectedTemplate.columns,
+                      onSlotSelected: (slot) {
+                        setState(() {
+                          _selectedSlot = slot;
+                        });
+                      },
+                      onClearSlot: (slot) {
+                        _composerController.clearSlot(slot);
+                        setState(() {});
+                      },
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Photo Booth MVP')),
+      backgroundColor: _bgColor,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Material(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _panelColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _panelBorder),
+              ),
               child: Row(
                 children: [
-                  const Icon(Icons.folder, size: 18),
+                  const Text('Inbox', style: TextStyle(color: Color(0xFFE6EEFF), fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  const Text('/', style: TextStyle(color: Color(0xFF7D92C5))),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Thư mục nhận ảnh: ${_paths.inboxDirectory}',
+                      _paths.inboxDirectory,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: const TextStyle(color: Color(0xFFB8C7EA)),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
+                  TextButton(
                     onPressed: _pickInboxFolder,
-                    icon: const Icon(Icons.sync_alt, size: 16),
-                    label: const Text('Đổi thư mục'),
+                    style: TextButton.styleFrom(foregroundColor: const Color(0xFFBFD2FF)),
+                    child: const Text('Change Folder', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -412,118 +482,175 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(
-                    width: 320,
-                    height: panelHeight,
-                    child: GalleryPanel(
-                      key: ValueKey(_paths.inboxDirectory),
-                      assets: _assets,
-                      selectedAssetId: _selectedAssetId,
-                      onAssetSelected: (asset) {
-                        setState(() {
-                          _selectedAssetId = asset.id;
-                        });
-                        _assignSelectedAssetToSlot();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: panelHeight,
+                    width: 290,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _panelColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _panelBorder),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              const Text('Frame:'),
-                              const SizedBox(width: 8),
-                              DropdownButton<String>(
-                                value: _selectedTemplate.id,
-                                items: FrameTemplate.presets
-                                    .map(
-                                      (template) => DropdownMenuItem<String>(
-                                        value: template.id,
-                                        child: Text(template.label),
-                                      ),
-                                    )
-                                    .toList(growable: false),
-                                onChanged: (value) {
-                                  if (value == null) return;
-                                  final template = FrameTemplate.presets.firstWhere((item) => item.id == value);
-                                  _composerController.setTemplate(template);
-                                  setState(() {
-                                    _selectedTemplate = template;
-                                    _selectedSlot = 1;
-                                  });
-                                },
-                              ),
-                            ],
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(12, 12, 12, 8),
+                            child: Text(
+                              'Library',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            ),
                           ),
                           Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                              child: GalleryPanel(
+                                key: ValueKey(_paths.inboxDirectory),
+                                assets: _assets,
+                                selectedAssetId: _selectedAssetId,
+                                onAssetSelected: (asset) {
+                                  setState(() {
+                                    _selectedAssetId = asset.id;
+                                  });
+                                  _assignSelectedAssetToSlot();
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _panelInner,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _panelBorder),
+                      ),
+                      child: Stack(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 84),
                             child: SingleChildScrollView(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SizedBox(
-                                    height: 420,
-                                    child: AnimatedBuilder(
-                                      animation: _composerController,
-                                      builder: (_, __) => ComposerGrid(
-                                        slots: _composerController.slots,
-                                        selectedSlot: _selectedSlot,
-                                        columns: _selectedTemplate.columns,
-                                        onSlotSelected: (slot) {
-                                          setState(() {
-                                            _selectedSlot = slot;
-                                          });
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: composerWidgets,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 18,
+                            child: Center(
+                              child: SizedBox(
+                                width: 220,
+                                height: 44,
+                                child: FilledButton.icon(
+                                  onPressed: (_isExporting || _isPreviewing)
+                                      ? null
+                                      : () async {
+                                          await _handlePreview();
                                         },
-                                        onClearSlot: (slot) {
-                                          _composerController.clearSlot(slot);
-                                          setState(() {});
-                                        },
+                                  icon: const Icon(Icons.file_upload_outlined, size: 18),
+                                  label: const Text('Preview & Export'),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  SizedBox(
+                    width: 260,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _panelColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _panelBorder),
+                      ),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Templates',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'BASIC LAYOUTS',
+                            style: TextStyle(
+                              color: Color(0xFF90A6D8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.7,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 260),
+                                child: GridView.builder(
+                                  itemCount: FrameTemplate.presets.length,
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 10,
+                                    crossAxisSpacing: 10,
+                                    childAspectRatio: 1.0,
+                                  ),
+                                  itemBuilder: (context, index) {
+                                    final template = FrameTemplate.presets[index];
+                                    final isSelected = _selectedTemplate.id == template.id;
+                                    return InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: () {
+                                        _composerController.setTemplate(template);
+                                        setState(() {
+                                          _selectedTemplate = template;
+                                          _selectedSlot = 1;
+                                        });
+                                      },
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: isSelected ? const Color(0xFF263A6F) : const Color(0xFF223059),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color:
+                                                isSelected ? const Color(0xFF93B2FF) : const Color(0xFF324879),
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.all(8),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            Expanded(child: _TemplateMiniPreview(template: template)),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              template.label,
+                                              textAlign: TextAlign.center,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Color(0xFFD5E3FF),
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    height: 280,
-                                    child: AnimatedBuilder(
-                                      animation: _composerController,
-                                      builder: (_, __) => PreviewPanel(
-                                        slots: _composerController.slots,
-                                        columns: _selectedTemplate.columns,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ExportActions(
-                                    isExporting: _isExporting,
-                                    isPreviewing: _isPreviewing,
-                                    printAfterExport: _printAfterExport,
-                                    autoTransferToPhone: _autoTransferToPhone,
-                                    onPrintAfterExportChanged: (value) {
-                                      setState(() {
-                                        _printAfterExport = value;
-                                      });
-                                    },
-                                    onAutoTransferToPhoneChanged: (value) {
-                                      setState(() {
-                                        _autoTransferToPhone = value;
-                                      });
-                                    },
-                                    onExport: _handleExport,
-                                    onPreview: _handlePreview,
-                                    onReset: () {
-                                      _composerController.resetAll();
-                                      setState(() {});
-                                    },
-                                  ),
-                                ],
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ),
@@ -535,7 +662,42 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
               ),
             ),
           ),
+          // Status banner intentionally hidden in the new UI.
         ],
+      ),
+    );
+  }
+}
+
+class _TemplateMiniPreview extends StatelessWidget {
+  const _TemplateMiniPreview({required this.template});
+
+  final FrameTemplate template;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF101C38),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF334B7D)),
+      ),
+      padding: const EdgeInsets.all(5),
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: template.slotCount,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: template.columns,
+          mainAxisSpacing: 4,
+          crossAxisSpacing: 4,
+        ),
+        itemBuilder: (_, __) => Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A284A),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: const Color(0xFF415C95)),
+          ),
+        ),
       ),
     );
   }

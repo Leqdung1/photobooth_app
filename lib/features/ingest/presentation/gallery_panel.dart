@@ -18,43 +18,85 @@ class GalleryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey.shade100,
-      child: assets.isEmpty
-          ? const Center(child: Text('Chưa có ảnh trong thư mục'))
-          : ListView.separated(
-              itemCount: assets.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final asset = assets[index];
-                final selected = asset.id == selectedAssetId;
-                return ListTile(
-                  selected: selected,
-                  leading: SizedBox(
-                    width: 56,
-                    height: 56,
-                    child: Image.file(
-                      File(asset.thumbnailPath ?? asset.path),
-                      key: ValueKey(asset.thumbnailPath ?? asset.path),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const Icon(Icons.image_not_supported),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(0),
+      child: ColoredBox(
+        color: const Color(0xFF121E3B),
+        child: assets.isEmpty
+            ? const Center(
+                child: Text(
+                  'Chưa có ảnh trong thư mục',
+                  style: TextStyle(color: Color(0xFFB7C8EE)),
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 10),
+                primary: false,
+                itemCount: assets.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final asset = assets[index];
+                  final selected = asset.id == selectedAssetId;
+                  final fileName = asset.path.split(Platform.pathSeparator).last;
+                  return Material(
+                    color: selected
+                        ? const Color(0xFF2A3D72)
+                        : const Color(0xFF1D2B51),
+                    borderRadius: BorderRadius.circular(12),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      selected: selected,
+                      title: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                            child: SizedBox(
+                              height: 140,
+                              width: double.infinity,
+                              child: Image.file(
+                                File(asset.thumbnailPath ?? asset.path),
+                                key: ValueKey(asset.thumbnailPath ?? asset.path),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    const Center(child: Icon(Icons.image_not_supported)),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
+                            child: Text(
+                              fileName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFFE3ECFF),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                            child: Text(
+                              asset.createdAt.toIso8601String(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFFA9BDE8),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      onTap: () => onAssetSelected(asset),
                     ),
-                  ),
-                  title: Text(
-                    asset.path.split(Platform.pathSeparator).last,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    asset.createdAt.toIso8601String(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () => onAssetSelected(asset),
-                );
-              },
-            ),
+                  );
+                },
+              ),
+      ),
     );
   }
 }

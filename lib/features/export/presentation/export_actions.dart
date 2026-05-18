@@ -26,58 +26,74 @@ class ExportActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    final busy = isExporting || isPreviewing;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ElevatedButton(
-              onPressed: isExporting || isPreviewing ? null : onExport,
-              child: Text(isExporting ? 'Exporting...' : 'Export'),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: busy ? null : onExport,
+                  icon: const Icon(Icons.file_download_outlined),
+                  label: Text(isExporting ? 'Exporting...' : 'Export ảnh'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : onPreview,
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: Text(isPreviewing ? 'Đang tạo...' : 'Preview'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: busy ? null : onReset,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reset slot'),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            OutlinedButton(
-              onPressed: isExporting || isPreviewing ? null : onPreview,
-              child: Text(isPreviewing ? 'Đang tạo...' : 'Preview'),
-            ),
-            const SizedBox(width: 12),
-            OutlinedButton(
-              onPressed: isExporting || isPreviewing ? null : onReset,
-              child: const Text('Reset'),
-            ),
-            const Spacer(),
-            Tooltip(
-              message: 'Sau khi export, mở hộp thoại in Windows (spooler → driver máy in)',
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('In sau export'),
-                  const SizedBox(width: 4),
-                  Switch(
-                    value: printAfterExport,
-                    onChanged: isExporting || isPreviewing ? null : onPrintAfterExportChanged,
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 6,
+              children: [
+                Tooltip(
+                  message: 'Sau khi export, mở hộp thoại in Windows (spooler → driver máy in)',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('In sau export'),
+                      Switch(
+                        value: printAfterExport,
+                        onChanged: busy ? null : onPrintAfterExportChanged,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Tooltip(
-              message: 'Tự thử gửi ảnh sang Android qua cáp USB (MTP/File Transfer).',
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Gửi sang điện thoại'),
-                  const SizedBox(width: 4),
-                  Switch(
-                    value: autoTransferToPhone,
-                    onChanged: isExporting || isPreviewing ? null : onAutoTransferToPhoneChanged,
+                ),
+                Tooltip(
+                  message: 'Tự thử gửi ảnh sang Android qua cáp USB (MTP/File Transfer).',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Gửi điện thoại'),
+                      Switch(
+                        value: autoTransferToPhone,
+                        onChanged: busy ? null : onAutoTransferToPhoneChanged,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
