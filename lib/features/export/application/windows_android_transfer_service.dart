@@ -251,7 +251,7 @@ foreach ($device in $deviceItems) {
 
     $ok = $false
     $foundSize = 0
-    for ($i = 0; $i -lt 30; $i++) {
+    for ($i = 0; $i -lt 60; $i++) {
       Start-Sleep -Milliseconds 400
       $found = Exists-InFolder -Folder $folder -FileName $fileName
       if ($found.Found -eq $true -and $found.Size -gt 0) {
@@ -361,7 +361,7 @@ foreach ($device in $deviceItems) {
             '-File',
             scriptFile.path,
           ],
-        ).timeout(const Duration(seconds: 30));
+        ).timeout(const Duration(seconds: 120));
 
         final stdout = (process.stdout ?? '').toString().trim();
         final stderr = (process.stderr ?? '').toString().trim();
@@ -410,7 +410,7 @@ foreach ($device in $deviceItems) {
     } on TimeoutException {
       return const _BridgeRunResult(
         ok: false,
-        errorMessage: 'MTP bridge timeout (>30s).',
+        errorMessage: 'MTP bridge timeout (>120s). Make sure your phone is unlocked and set to File Transfer mode.',
       );
     } catch (error) {
       return _BridgeRunResult(ok: false, errorMessage: error.toString());
