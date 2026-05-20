@@ -57,8 +57,8 @@ class FrameTemplate {
     exportWidth: 1200,
     exportHeight: 1800,
     previewAspectRatio: 2 / 3,
-    outerPaddingRatio: 0.05,
-    cellPaddingRatio: 0.14,
+    outerPaddingRatio: 0.025,
+    cellPaddingRatio: 0.03,
     drawGridLines: true,
   );
 
@@ -71,8 +71,22 @@ class FrameTemplate {
     exportWidth: 1200,
     exportHeight: 1800,
     previewAspectRatio: 2 / 3,
-    outerPaddingRatio: 0.05,
-    cellPaddingRatio: 0.14,
+    outerPaddingRatio: 0.022,
+    cellPaddingRatio: 0.025,
+    drawGridLines: true,
+  );
+
+  static const fourByFour = FrameTemplate(
+    id: '4x4',
+    label: '16 ảnh (4x4)',
+    kind: FrameTemplateKind.grid,
+    rows: 4,
+    columns: 4,
+    exportWidth: 1200,
+    exportHeight: 1800,
+    previewAspectRatio: 2 / 3,
+    outerPaddingRatio: 0.018,
+    cellPaddingRatio: 0.012,
     drawGridLines: true,
   );
 
@@ -123,6 +137,7 @@ class FrameTemplate {
   static const List<FrameTemplate> presets = [
     oneByTwo,
     twoByTwo,
+    fourByFour,
     polaroidAuto,
     editorialFiveVertical,
   ];

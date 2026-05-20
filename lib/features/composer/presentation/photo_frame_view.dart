@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../domain/frame_template.dart';
 import '../domain/slot_assignment.dart';
-import 'framed_photo_slot.dart';
 
 typedef SlotTransformChanged = void Function({
   required int slotIndex,
@@ -51,56 +50,115 @@ class PhotoFrameView extends StatelessWidget {
       );
     }
 
+    return _GridTemplateView(
+      template: template,
+      slots: slots,
+      columns: columns,
+      aspectRatio: aspectRatio,
+      selectedSlot: selectedSlot,
+      onSlotSelected: onSlotSelected,
+      onTransformChanged: onTransformChanged,
+      onClearSlot: onClearSlot,
+      interactive: _interactive,
+    );
+  }
+}
+
+class _GridTemplateView extends StatelessWidget {
+  const _GridTemplateView({
+    required this.template,
+    required this.slots,
+    required this.columns,
+    required this.aspectRatio,
+    required this.selectedSlot,
+    required this.onSlotSelected,
+    required this.onTransformChanged,
+    required this.onClearSlot,
+    required this.interactive,
+  });
+
+  final FrameTemplate template;
+  final List<SlotAssignment> slots;
+  final int columns;
+  final double aspectRatio;
+  final int? selectedSlot;
+  final ValueChanged<int>? onSlotSelected;
+  final SlotTransformChanged? onTransformChanged;
+  final ValueChanged<int>? onClearSlot;
+  final bool interactive;
+
+  @override
+  Widget build(BuildContext context) {
     final rows = (slots.length / columns).ceil();
 
     return AspectRatio(
       aspectRatio: aspectRatio,
       child: Container(
         color: Colors.white,
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: List<Widget>.generate(rows, (row) {
-            final rowSlots = slots.skip(row * columns).take(columns).toList();
-            return Expanded(
-              child: Column(
-                children: [
-                  if (row > 0)
-                    Divider(height: 1, thickness: 1, color: Colors.grey.shade300),
-                  Expanded(
-                    child: Row(
-                      children: List<Widget>.generate(rowSlots.length, (col) {
-                        final slot = rowSlots[col];
-                        final isSelected = selectedSlot == slot.slotIndex;
-                        return Expanded(
-                          child: Row(
-                            children: [
-                              if (col > 0)
-                                VerticalDivider(
-                                  width: 1,
-                                  thickness: 1,
-                                  color: Colors.grey.shade300,
-                                ),
-                              Expanded(
-                                child: FramedPhotoSlot(
-                                  label: 'Slot ${slot.slotIndex}',
-                                  assetPath: slot.assetPath,
-                                  isSelected: isSelected && _interactive,
-                                  onTap: _interactive ? () => onSlotSelected!(slot.slotIndex) : null,
-                                  onClear: _interactive && slot.assetPath != null
-                                      ? () => onClearSlot!(slot.slotIndex)
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            final h = constraints.maxHeight;
+            final outerRatio = template.outerPaddingRatio ?? 0;
+            final outerPadX = w * outerRatio;
+            final outerPadY = h * outerRatio;
+            final contentW = w - outerPadX * 2;
+            final contentH = h - outerPadY * 2;
+
+            final cellW = contentW / columns;
+            final cellH = contentH / rows;
+            final cellPadRatio = template.isPolaroid ? 0 : (template.cellPaddingRatio ?? 0);
+
+            final slotsWidgets = <Widget>[];
+            for (var i = 0; i < slots.length; i++) {
+              final col = i % columns;
+              final row = i ~/ columns;
+              final slot = slots[i];
+
+              final cellX = outerPadX + col * cellW;
+              final cellY = outerPadY + row * cellH;
+              final padX = cellW * cellPadRatio;
+              final padY = cellH * cellPadRatio;
+
+              final left = (cellX + padX) / w;
+              final top = (cellY + padY) / h;
+              final right = (cellX + cellW - padX) / w;
+              final bottom = (cellY + cellH - padY) / h;
+
+              slotsWidgets.add(
+                _SlotViewport(
+                  bounds: NormalizedRect(left, top, right, bottom),
+                  slot: slot,
+                  canvasW: w,
+                  canvasH: h,
+                  originX: 0,
+                  originY: 0,
+                  isSelected: selectedSlot == slot.slotIndex,
+                  onSlotSelected: onSlotSelected,
+                  onTransformChanged: onTransformChanged,
+                  onClearSlot: onClearSlot,
+                ),
+              );
+            }
+
+            return Stack(
+              children: [
+                ...slotsWidgets,
+                if (template.drawGridLines)
+                  IgnorePointer(
+                    child: CustomPaint(
+                      size: Size(w, h),
+                      painter: _GridOverlayPainter(
+                        rows: rows,
+                        columns: columns,
+                        outerPadX: outerPadX,
+                        outerPadY: outerPadY,
+                      ),
                     ),
                   ),
-                ],
-              ),
+              ],
             );
-          }),
+          },
         ),
       ),
     );
@@ -342,5 +400,50 @@ class _FrameOverlayPainter extends CustomPainter {
     return oldDelegate.divider != divider ||
         oldDelegate.layout != layout ||
         oldDelegate.outerPadding != outerPadding;
+  }
+}
+
+class _GridOverlayPainter extends CustomPainter {
+  const _GridOverlayPainter({
+    required this.rows,
+    required this.columns,
+    required this.outerPadX,
+    required this.outerPadY,
+  });
+
+  final int rows;
+  final int columns;
+  final double outerPadX;
+  final double outerPadY;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.shade300
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    final contentW = size.width - outerPadX * 2;
+    final contentH = size.height - outerPadY * 2;
+    final cellW = contentW / columns;
+    final cellH = contentH / rows;
+
+    for (var row = 1; row < rows; row++) {
+      final y = outerPadY + row * cellH;
+      canvas.drawLine(Offset(outerPadX, y), Offset(outerPadX + contentW, y), paint);
+    }
+
+    for (var col = 1; col < columns; col++) {
+      final x = outerPadX + col * cellW;
+      canvas.drawLine(Offset(x, outerPadY), Offset(x, outerPadY + contentH), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GridOverlayPainter oldDelegate) {
+    return oldDelegate.rows != rows ||
+        oldDelegate.columns != columns ||
+        oldDelegate.outerPadX != outerPadX ||
+        oldDelegate.outerPadY != outerPadY;
   }
 }
