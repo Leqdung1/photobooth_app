@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../domain/frame_layout.dart';
 import '../domain/slot_assignment.dart';
 import 'framed_photo_slot.dart';
 
@@ -9,6 +8,7 @@ class PhotoFrameView extends StatelessWidget {
     super.key,
     required this.slots,
     required this.columns,
+    required this.aspectRatio,
     this.selectedSlot,
     this.onSlotSelected,
     this.onClearSlot,
@@ -16,6 +16,7 @@ class PhotoFrameView extends StatelessWidget {
 
   final List<SlotAssignment> slots;
   final int columns;
+  final double aspectRatio;
   final int? selectedSlot;
   final ValueChanged<int>? onSlotSelected;
   final ValueChanged<int>? onClearSlot;
@@ -27,7 +28,7 @@ class PhotoFrameView extends StatelessWidget {
     final rows = (slots.length / columns).ceil();
 
     return AspectRatio(
-      aspectRatio: FrameLayout.portraitAspect,
+      aspectRatio: aspectRatio,
       child: Container(
         color: Colors.white,
         padding: const EdgeInsets.all(12),

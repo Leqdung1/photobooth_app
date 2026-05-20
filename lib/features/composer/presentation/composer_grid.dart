@@ -11,6 +11,7 @@ class ComposerGrid extends StatelessWidget {
     required this.onSlotSelected,
     required this.onClearSlot,
     required this.columns,
+    required this.aspectRatio,
   });
 
   final List<SlotAssignment> slots;
@@ -18,12 +19,14 @@ class ComposerGrid extends StatelessWidget {
   final ValueChanged<int> onSlotSelected;
   final ValueChanged<int> onClearSlot;
   final int columns;
+  final double aspectRatio;
 
   @override
   Widget build(BuildContext context) {
     return PhotoFrameView(
       slots: slots,
       columns: columns,
+      aspectRatio: aspectRatio,
       selectedSlot: selectedSlot,
       onSlotSelected: onSlotSelected,
       onClearSlot: onClearSlot,

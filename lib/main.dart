@@ -311,6 +311,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       exportsDirectory: _paths.exportsDirectory,
       rows: _selectedTemplate.rows,
       columns: _selectedTemplate.columns,
+      template: _selectedTemplate,
     );
   }
 
@@ -495,6 +496,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                       slots: _composerController.slots,
                       selectedSlot: _selectedSlot,
                       columns: _selectedTemplate.columns,
+                      aspectRatio: _selectedTemplate.previewAspectRatio,
                       onSlotSelected: (slot) {
                         setState(() {
                           _selectedSlot = slot;

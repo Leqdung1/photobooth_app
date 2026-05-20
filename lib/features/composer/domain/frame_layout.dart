@@ -2,7 +2,7 @@
 class FrameLayout {
   FrameLayout._();
 
-  static const double portraitAspect = 2 / 3;
+  static const double portraitAspect = 4 / 5;
 
   static const int exportWidth = 1200;
   static const int exportHeight = 1800;
