@@ -11,6 +11,7 @@ class FrameTemplate {
     this.outerPaddingRatio,
     this.cellPaddingRatio,
     this.polaroidBorder,
+    this.customLayout,
     this.drawGridLines = true,
   });
 
@@ -36,12 +37,16 @@ class FrameTemplate {
   /// Polaroid-only: exact border sizes in pixels.
   final PolaroidBorder? polaroidBorder;
 
+  /// Custom slot layout (normalized 0..1 coordinates) for stack/clip templates.
+  final CustomLayoutDefinition? customLayout;
+
   /// Whether export should draw divider lines between grid cells.
   final bool drawGridLines;
 
   int get slotCount => rows * columns;
 
   bool get isPolaroid => kind == FrameTemplateKind.polaroid;
+  bool get isCustom => kind == FrameTemplateKind.custom;
 
   static const oneByTwo = FrameTemplate(
     id: '1x2',
@@ -87,16 +92,46 @@ class FrameTemplate {
     drawGridLines: false,
   );
 
+  /// Editorial 5-vertical stack layout (sample-like composition).
+  static const editorialFiveVertical = FrameTemplate(
+    id: 'editorial_5v',
+    label: 'Editorial 5V',
+    kind: FrameTemplateKind.custom,
+    rows: 1,
+    columns: 5,
+    exportWidth: 1200,
+    exportHeight: 1500,
+    previewAspectRatio: 1200 / 1500,
+    customLayout: CustomLayoutDefinition(
+      dividerThicknessRatio: 0.006,
+      slots: [
+        // left top
+        NormalizedRect(0.00, 0.00, 0.31, 0.53),
+        // left bottom
+        NormalizedRect(0.00, 0.53, 0.31, 1.00),
+        // center tall
+        NormalizedRect(0.31, 0.00, 0.66, 1.00),
+        // right top
+        NormalizedRect(0.66, 0.00, 1.00, 0.52),
+        // right bottom
+        NormalizedRect(0.66, 0.52, 1.00, 1.00),
+      ],
+    ),
+    drawGridLines: false,
+  );
+
   static const List<FrameTemplate> presets = [
     oneByTwo,
     twoByTwo,
     polaroidAuto,
+    editorialFiveVertical,
   ];
 }
 
 enum FrameTemplateKind {
   grid,
   polaroid,
+  custom,
 }
 
 class PolaroidBorder {
@@ -105,4 +140,25 @@ class PolaroidBorder {
   final int top;
   final int side;
   final int bottom;
+}
+
+class CustomLayoutDefinition {
+  const CustomLayoutDefinition({
+    required this.slots,
+    this.dividerThicknessRatio = 0.006,
+    this.outerPaddingRatio = 0.02,
+  });
+
+  final List<NormalizedRect> slots;
+  final double dividerThicknessRatio;
+  final double outerPaddingRatio;
+}
+
+class NormalizedRect {
+  const NormalizedRect(this.left, this.top, this.right, this.bottom);
+
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
 }

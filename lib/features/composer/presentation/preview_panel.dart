@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../domain/frame_layout.dart';
+import '../domain/frame_template.dart';
 import '../domain/slot_assignment.dart';
 import 'photo_frame_view.dart';
 
@@ -13,6 +14,11 @@ class PreviewPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Legacy panel (not wired to selected template) – keep portrait aspect.
-    return PhotoFrameView(slots: slots, columns: columns, aspectRatio: FrameLayout.portraitAspect);
+    return PhotoFrameView(
+      slots: slots,
+      template: FrameTemplate.oneByTwo,
+      columns: columns,
+      aspectRatio: FrameLayout.portraitAspect,
+    );
   }
 }

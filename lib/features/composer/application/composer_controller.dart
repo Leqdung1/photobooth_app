@@ -35,7 +35,23 @@ class ComposerController extends ChangeNotifier {
     _slots = _slots
         .map(
           (slot) => slot.slotIndex == slotIndex
-              ? slot.copyWith(assetPath: assetPath)
+              ? slot.copyWith(assetPath: assetPath, resetTransform: true)
+              : slot,
+        )
+        .toList(growable: false);
+    notifyListeners();
+  }
+
+  void updateTransform({
+    required int slotIndex,
+    required double scale,
+    required double offsetX,
+    required double offsetY,
+  }) {
+    _slots = _slots
+        .map(
+          (slot) => slot.slotIndex == slotIndex
+              ? slot.copyWith(scale: scale, offsetX: offsetX, offsetY: offsetY)
               : slot,
         )
         .toList(growable: false);

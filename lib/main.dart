@@ -307,7 +307,16 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
 
   ExportRequest _buildExportRequest() {
     return ExportRequest(
-      slotPaths: _composerController.slots.map((slot) => slot.assetPath).toList(growable: false),
+      slots: _composerController.slots
+          .map(
+            (slot) => ExportSlot(
+              assetPath: slot.assetPath,
+              scale: slot.scale,
+              offsetX: slot.offsetX,
+              offsetY: slot.offsetY,
+            ),
+          )
+          .toList(growable: false),
       exportsDirectory: _paths.exportsDirectory,
       rows: _selectedTemplate.rows,
       columns: _selectedTemplate.columns,
@@ -495,12 +504,21 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                     return ComposerGrid(
                       slots: _composerController.slots,
                       selectedSlot: _selectedSlot,
+                      template: _selectedTemplate,
                       columns: _selectedTemplate.columns,
                       aspectRatio: _selectedTemplate.previewAspectRatio,
                       onSlotSelected: (slot) {
                         setState(() {
                           _selectedSlot = slot;
                         });
+                      },
+                      onTransformChanged: ({required slotIndex, required scale, required offsetX, required offsetY}) {
+                        _composerController.updateTransform(
+                          slotIndex: slotIndex,
+                          scale: scale,
+                          offsetX: offsetX,
+                          offsetY: offsetY,
+                        );
                       },
                       onClearSlot: (slot) {
                         _composerController.clearSlot(slot);

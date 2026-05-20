@@ -86,7 +86,8 @@ class ExportService {
       '${request.rows}x${request.columns}',
     ];
 
-    for (final path in request.slotPaths) {
+    for (final slot in request.slots) {
+      final path = slot.assetPath;
       if (path == null) {
         parts.add('null');
         continue;
@@ -97,7 +98,10 @@ class ExportService {
         continue;
       }
       final stat = await file.stat();
-      parts.add('$path|${stat.modified.millisecondsSinceEpoch}|${stat.size}');
+      parts.add(
+        '$path|${stat.modified.millisecondsSinceEpoch}|${stat.size}|'
+        '${slot.scale.toStringAsFixed(4)}|${slot.offsetX.toStringAsFixed(2)}|${slot.offsetY.toStringAsFixed(2)}',
+      );
     }
 
     return parts.join('||');
@@ -113,12 +117,14 @@ class ExportService {
     }
 
     final sourceBytes = <Uint8List>[];
-    for (final path in request.slotPaths) {
-      final file = File(path!);
+    final transforms = <_SlotTransform>[];
+    for (final slot in request.slots) {
+      final file = File(slot.assetPath!);
       if (!await file.exists()) {
         return _RenderResult(error: 'Missing source file: ${file.path}');
       }
       sourceBytes.add(await file.readAsBytes());
+      transforms.add(_SlotTransform(scale: slot.scale, offsetX: slot.offsetX, offsetY: slot.offsetY));
     }
 
     final input = _RenderInput(
@@ -126,6 +132,7 @@ class ExportService {
       rows: request.rows,
       columns: request.columns,
       sourceBytes: sourceBytes,
+      transforms: transforms,
       includePng: includePng,
       includePreviewJpeg: includePreviewJpeg,
     );
@@ -147,54 +154,79 @@ class ExportService {
     final canvas = img.Image(width: resolved.canvasWidth, height: resolved.canvasHeight);
     img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
 
-    int originX;
-    int originY;
-    int gridW;
-    int gridH;
-
-    if (resolved.isPolaroid && resolved.polaroidBorder != null) {
-      final b = resolved.polaroidBorder!;
-      originX = b.side;
-      originY = b.top;
-      gridW = resolved.canvasWidth - b.side * 2;
-      gridH = resolved.canvasHeight - b.top - b.bottom;
+    if (input.template.isCustom && input.template.customLayout != null) {
+      final layout = input.template.customLayout!;
+      final outerPad = (resolved.canvasWidth * layout.outerPaddingRatio).round();
+      final contentW = resolved.canvasWidth - outerPad * 2;
+      final contentH = resolved.canvasHeight - outerPad * 2;
+      for (var i = 0; i < input.sourceBytes.length && i < layout.slots.length; i++) {
+        final decoded = img.decodeImage(input.sourceBytes[i]);
+        if (decoded == null) {
+          return _RenderResult(error: 'Cannot decode image at slot ${i + 1}.');
+        }
+        final slot = layout.slots[i];
+        final x = outerPad + (slot.left * contentW).round();
+        final y = outerPad + (slot.top * contentH).round();
+        final w = ((slot.right - slot.left) * contentW).round();
+        final h = ((slot.bottom - slot.top) * contentH).round();
+        _drawImageCoverWithTransform(canvas, decoded, x, y, w, h, input.transforms[i]);
+      }
+      _drawCustomTemplateDividers(canvas, layout, resolved.canvasWidth, resolved.canvasHeight, outerPad);
     } else {
-      final outerPadX = (resolved.canvasWidth * (resolved.outerPaddingRatio ?? FrameLayout.outerPaddingRatio)).round();
-      final outerPadY = (resolved.canvasHeight * (resolved.outerPaddingRatio ?? FrameLayout.outerPaddingRatio)).round();
-      originX = outerPadX;
-      originY = outerPadY;
-      gridW = resolved.canvasWidth - outerPadX * 2;
-      gridH = resolved.canvasHeight - outerPadY * 2;
-    }
+      int originX;
+      int originY;
+      int gridW;
+      int gridH;
 
-    final cellW = gridW ~/ input.columns;
-    final cellH = gridH ~/ input.rows;
-
-    for (var i = 0; i < input.sourceBytes.length; i++) {
-      final decoded = img.decodeImage(input.sourceBytes[i]);
-      if (decoded == null) {
-        return _RenderResult(error: 'Cannot decode image at slot ${i + 1}.');
+      if (resolved.isPolaroid && resolved.polaroidBorder != null) {
+        final b = resolved.polaroidBorder!;
+        originX = b.side;
+        originY = b.top;
+        gridW = resolved.canvasWidth - b.side * 2;
+        gridH = resolved.canvasHeight - b.top - b.bottom;
+      } else {
+        final outerPadX = (resolved.canvasWidth * (resolved.outerPaddingRatio ?? FrameLayout.outerPaddingRatio)).round();
+        final outerPadY = (resolved.canvasHeight * (resolved.outerPaddingRatio ?? FrameLayout.outerPaddingRatio)).round();
+        originX = outerPadX;
+        originY = outerPadY;
+        gridW = resolved.canvasWidth - outerPadX * 2;
+        gridH = resolved.canvasHeight - outerPadY * 2;
       }
 
-      final col = i % input.columns;
-      final row = i ~/ input.columns;
-      final cellX = originX + col * cellW;
-      final cellY = originY + row * cellH;
+      final cellW = gridW ~/ input.columns;
+      final cellH = gridH ~/ input.rows;
 
-      final cellPad = resolved.cellPaddingRatio ?? FrameLayout.cellPaddingRatio;
-      final padX = resolved.isPolaroid ? 0 : (cellW * cellPad).round();
-      final padY = resolved.isPolaroid ? 0 : (cellH * cellPad).round();
-      final innerW = cellW - padX * 2;
-      final innerH = cellH - padY * 2;
+      for (var i = 0; i < input.sourceBytes.length; i++) {
+        final decoded = img.decodeImage(input.sourceBytes[i]);
+        if (decoded == null) {
+          return _RenderResult(error: 'Cannot decode image at slot ${i + 1}.');
+        }
 
-      final fitted = _resizeContain(decoded, innerW, innerH);
-      final dx = cellX + padX + (innerW - fitted.width) ~/ 2;
-      final dy = cellY + padY + (innerH - fitted.height) ~/ 2;
-      img.compositeImage(canvas, fitted, dstX: dx, dstY: dy);
-    }
+        final col = i % input.columns;
+        final row = i ~/ input.columns;
+        final cellX = originX + col * cellW;
+        final cellY = originY + row * cellH;
 
-    if (resolved.drawGridLines) {
-      _drawGridLines(canvas, input.rows, input.columns, originX, originY, cellW, cellH);
+        final cellPad = resolved.cellPaddingRatio ?? FrameLayout.cellPaddingRatio;
+        final padX = resolved.isPolaroid ? 0 : (cellW * cellPad).round();
+        final padY = resolved.isPolaroid ? 0 : (cellH * cellPad).round();
+        final innerW = cellW - padX * 2;
+        final innerH = cellH - padY * 2;
+
+        _drawImageCoverWithTransform(
+          canvas,
+          decoded,
+          cellX + padX,
+          cellY + padY,
+          innerW,
+          innerH,
+          input.transforms[i],
+        );
+      }
+
+      if (resolved.drawGridLines) {
+        _drawGridLines(canvas, input.rows, input.columns, originX, originY, cellW, cellH);
+      }
     }
 
     return _RenderResult(
@@ -275,6 +307,75 @@ class ExportService {
     return img.copyResize(source, width: targetW, height: targetH);
   }
 
+  static void _drawImageCoverWithTransform(
+    img.Image canvas,
+    img.Image source,
+    int slotX,
+    int slotY,
+    int slotW,
+    int slotH,
+    _SlotTransform transform,
+  ) {
+    final slotCanvas = img.Image(width: slotW, height: slotH);
+    final baseScale = math.max(slotW / source.width, slotH / source.height);
+    final finalScale = baseScale * transform.scale;
+    final targetW = math.max(1, (source.width * finalScale).round());
+    final targetH = math.max(1, (source.height * finalScale).round());
+    final scaled = img.copyResize(source, width: targetW, height: targetH);
+
+    final centerX = slotW / 2 + transform.offsetX;
+    final centerY = slotH / 2 + transform.offsetY;
+    final dx = (centerX - targetW / 2).round();
+    final dy = (centerY - targetH / 2).round();
+
+    img.compositeImage(
+      slotCanvas,
+      scaled,
+      dstX: dx,
+      dstY: dy,
+      dstW: scaled.width,
+      dstH: scaled.height,
+      mask: null,
+      linearBlend: false,
+    );
+
+    img.compositeImage(canvas, slotCanvas, dstX: slotX, dstY: slotY);
+  }
+
+  static void _drawCustomTemplateDividers(
+    img.Image canvas,
+    CustomLayoutDefinition layout,
+    int canvasW,
+    int canvasH,
+    int outerPad,
+  ) {
+    final lineColor = img.ColorRgb8(255, 255, 255);
+    final stroke = (canvasW * layout.dividerThicknessRatio).round().clamp(1, 6);
+    final contentW = canvasW - outerPad * 2;
+    final contentH = canvasH - outerPad * 2;
+
+    for (var i = 0; i < stroke; i++) {
+      img.drawRect(
+        canvas,
+        x1: outerPad - i,
+        y1: outerPad - i,
+        x2: outerPad + contentW + i,
+        y2: outerPad + contentH + i,
+        color: lineColor,
+      );
+    }
+
+    for (final s in layout.slots) {
+      final l = outerPad + (s.left * contentW).round();
+      final t = outerPad + (s.top * contentH).round();
+      final r = outerPad + (s.right * contentW).round();
+      final b = outerPad + (s.bottom * contentH).round();
+      for (var i = 0; i < stroke; i++) {
+        img.drawRect(canvas, x1: l - i, y1: t - i, x2: r + i, y2: b + i, color: lineColor);
+      }
+    }
+  }
+
   String _buildOutputPath(String exportsDirectory) {
     final stamp = DateTime.now().toIso8601String().replaceAll(':', '-').replaceAll('.', '-');
     var counter = 1;
@@ -294,6 +395,7 @@ class _RenderInput {
     required this.rows,
     required this.columns,
     required this.sourceBytes,
+    required this.transforms,
     required this.includePng,
     required this.includePreviewJpeg,
   });
@@ -302,8 +404,17 @@ class _RenderInput {
   final int rows;
   final int columns;
   final List<Uint8List> sourceBytes;
+  final List<_SlotTransform> transforms;
   final bool includePng;
   final bool includePreviewJpeg;
+}
+
+class _SlotTransform {
+  const _SlotTransform({required this.scale, required this.offsetX, required this.offsetY});
+
+  final double scale;
+  final double offsetX;
+  final double offsetY;
 }
 
 class _RenderResult {
