@@ -293,6 +293,7 @@ class _SlotViewport extends StatefulWidget {
     required this.canvasH,
     required this.originX,
     required this.originY,
+    this.quarterTurns = 0,
     required this.isSelected,
     required this.onSlotSelected,
     required this.onTransformChanged,
@@ -305,6 +306,7 @@ class _SlotViewport extends StatefulWidget {
   final double canvasH;
   final double originX;
   final double originY;
+  final int quarterTurns;
   final bool isSelected;
   final ValueChanged<int>? onSlotSelected;
   final SlotTransformChanged? onTransformChanged;
@@ -374,11 +376,14 @@ class _SlotViewportState extends State<_SlotViewport> {
                           offset: Offset(widget.slot.offsetX, widget.slot.offsetY),
                           child: Transform.scale(
                             scale: widget.slot.scale,
-                            child: Image.file(
-                              File(widget.slot.assetPath!),
-                              fit: BoxFit.cover,
-                              alignment: Alignment.center,
-                              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
+                            child: RotatedBox(
+                              quarterTurns: widget.quarterTurns % 4,
+                              child: Image.file(
+                                File(widget.slot.assetPath!),
+                                fit: BoxFit.cover,
+                                alignment: Alignment.center,
+                                errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
+                              ),
                             ),
                           ),
                         ),

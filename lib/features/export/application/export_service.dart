@@ -196,12 +196,20 @@ class ExportService {
         if (decoded == null) {
           return _RenderResult(error: 'Cannot decode image at slot ${i + 1}.');
         }
+
+        final turns = (i < layout.slotQuarterTurns.length) ? (layout.slotQuarterTurns[i] % 4) : 0;
+        final rotated = switch (turns) {
+          1 => img.copyRotate(decoded, angle: 90),
+          2 => img.copyRotate(decoded, angle: 180),
+          3 => img.copyRotate(decoded, angle: 270),
+          _ => decoded,
+        };
         final slot = layout.slots[i];
         final x = outerPad + (slot.left * contentW).round();
         final y = outerPad + (slot.top * contentH).round();
         final w = ((slot.right - slot.left) * contentW).round();
         final h = ((slot.bottom - slot.top) * contentH).round();
-        _drawImageCoverWithTransform(canvas, decoded, x, y, w, h, input.transforms[i]);
+        _drawImageCoverWithTransform(canvas, rotated, x, y, w, h, input.transforms[i]);
       }
 
       // Only draw custom dividers if requested.

@@ -93,18 +93,21 @@ class FrameTemplate {
       cardDividerPx: 1,
       // Image areas (normalized to canvas)
       slots: [
-        // L/R=70px -> x=70..1130
-        // Slot 1 image: y=60..855 (60 top, 160 bottom; image 795px)
-        NormalizedRect(0.0583333, 0.02954, 0.9416667, 0.42100),
-        // Slot 2 image: y=1076..1871 (1015 + 1 divider + 60 top)
-        NormalizedRect(0.0583333, 0.52979, 0.9416667, 0.92122),
+        // Force exact 4:3 window by using exact pixel-derived ratios.
+        // Image window per card:
+        //   x = 70..1130  => width 1060
+        //   y = 60..855   => height 795
+        // 1060/795 = 4/3 exactly.
+        NormalizedRect(70 / 1200, 60 / 2031, 1130 / 1200, 855 / 2031),
+        // Slot 2 image: y=1076..1871 (card 1015 + divider 1 + top 60)
+        NormalizedRect(70 / 1200, 1076 / 2031, 1130 / 1200, 1871 / 2031),
       ],
       // Card rects
       cardRects: [
         // Card 1: y=0..1015
-        NormalizedRect(0.0, 0.0, 1.0, 0.49975),
+        NormalizedRect(0, 0, 1, 1015 / 2031),
         // Card 2: y=1016..2031 (starts after 1px divider)
-        NormalizedRect(0.0, 0.50025, 1.0, 1.0),
+        NormalizedRect(0, 1016 / 2031, 1, 1),
       ],
     ),
     drawGridLines: false,
@@ -166,6 +169,47 @@ class FrameTemplate {
     drawGridLines: true,
   );
 
+  /// Two landscape photos stacked vertically with equal mat on all sides.
+  /// (Matches: 2 photos, horizontal/landscape, thick even white border, thin grey divider)
+  static const twoLandscapeMatted = FrameTemplate(
+    id: '2_landscape_mat',
+    label: 'towwo image ngang',
+    kind: FrameTemplateKind.custom,
+    rows: 2,
+    columns: 1,
+    exportWidth: 1200,
+    // Landscape slot (4:3) with asymmetric mat:
+    //   left = 200px, right = 80px, top = 90px, bottom = 90px
+    // Divider: 1px
+    // Slot width  = 1200 - 200 - 80 = 920px
+    // Slot height = 920 * 3/4 = 690px  (4:3 landscape, wider than tall)
+    // Card height = 90 + 690 + 90 = 870px
+    // Canvas = 870 + 1 + 870 = 1741px
+    exportHeight: 1741,
+    previewAspectRatio: 1200 / 1741,
+    customLayout: CustomLayoutDefinition(
+      outerPaddingRatio: 0,
+      dividerThicknessRatio: 0,
+      showCardShadow: true,
+      cardDividerPx: 1,
+      // Rotate content 90° clockwise inside the landscape window.
+      slotQuarterTurns: [1, 1],
+      slots: [
+        // Card 1: x=200..1120, y=90..780 (4:3 landscape)
+        NormalizedRect(200 / 1200, 90 / 1741, 1120 / 1200, 780 / 1741),
+        // Card 2: card2 top=870+1=871; y=871+90=961..961+690=1651
+        NormalizedRect(200 / 1200, 961 / 1741, 1120 / 1200, 1651 / 1741),
+      ],
+      cardRects: [
+        // Card 1: y=0..870
+        NormalizedRect(0, 0, 1, 870 / 1741),
+        // Card 2: y=871..1741
+        NormalizedRect(0, 871 / 1741, 1, 1),
+      ],
+    ),
+    drawGridLines: false,
+  );
+
   /// Polaroid (auto): chooses portrait/landscape canvas from input image ratio.
   static const polaroidAuto = FrameTemplate(
     id: 'polaroid_auto',
@@ -206,6 +250,7 @@ class FrameTemplate {
     oneByTwo,
     oneByThree,
     oneByFour,
+    twoLandscapeMatted,
     twoByTwo,
     fourByFour,
     polaroidAuto,
@@ -235,6 +280,7 @@ class CustomLayoutDefinition {
     this.showCardShadow = false,
     this.cardRects = const [],
     this.cardDividerPx = 0,
+    this.slotQuarterTurns = const [],
   });
 
   final List<NormalizedRect> slots;
@@ -249,6 +295,10 @@ class CustomLayoutDefinition {
 
   /// Divider thickness between first two cards (pixels). If 0, no divider.
   final int cardDividerPx;
+
+  /// Optional per-slot 90° rotation steps (clockwise). Length should match [slots].
+  /// Example: 1 = 90° clockwise, 2 = 180°, 3 = 270°.
+  final List<int> slotQuarterTurns;
 }
 
 class NormalizedInsets {
