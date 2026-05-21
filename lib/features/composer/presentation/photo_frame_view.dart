@@ -64,6 +64,10 @@ class PhotoFrameView extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Grid layout
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _GridTemplateView extends StatelessWidget {
   const _GridTemplateView({
     required this.template,
@@ -107,7 +111,7 @@ class _GridTemplateView extends StatelessWidget {
 
             final cellW = contentW / columns;
             final cellH = contentH / rows;
-            final cellPadRatio = template.isPolaroid ? 0 : (template.cellPaddingRatio ?? 0);
+            final cellPadRatio = template.isPolaroid ? 0.0 : (template.cellPaddingRatio ?? 0.0);
 
             final slotsWidgets = <Widget>[];
             for (var i = 0; i < slots.length; i++) {
@@ -165,6 +169,10 @@ class _GridTemplateView extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom layout (including polaroid-card style for 1×2)
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _CustomTemplateView extends StatelessWidget {
   const _CustomTemplateView({
     required this.template,
@@ -190,48 +198,92 @@ class _CustomTemplateView extends StatelessWidget {
     return AspectRatio(
       aspectRatio: aspectRatio,
       child: Container(
-        color: Colors.white,
+        // Light grey background so the white cards pop
+        color: const Color(0xFFF0F0F0),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final w = constraints.maxWidth;
             final h = constraints.maxHeight;
-            final divider = (w * layout.dividerThicknessRatio).clamp(1, 6).toDouble();
-            final outerPad = (w * layout.outerPaddingRatio).clamp(0, w * 0.08).toDouble();
+            final outerPad = (w * layout.outerPaddingRatio).clamp(0.0, w * 0.08);
 
-            return Stack(
-              children: [
-                for (var i = 0; i < layout.slots.length && i < slots.length; i++)
-                  _SlotViewport(
-                    bounds: layout.slots[i],
-                    slot: slots[i],
-                    canvasW: w - outerPad * 2,
-                    canvasH: h - outerPad * 2,
-                    originX: outerPad,
-                    originY: outerPad,
-                    isSelected: selectedSlot == slots[i].slotIndex,
-                    onSlotSelected: onSlotSelected,
-                    onTransformChanged: onTransformChanged,
-                    onClearSlot: onClearSlot,
-                  ),
-                IgnorePointer(
-                  child: CustomPaint(
-                    size: Size(w, h),
-                    painter: _FrameOverlayPainter(
-                      layout: layout,
-                      divider: divider,
-                      outerPadding: outerPad,
+            final layers = <Widget>[];
+
+            // 1. Draw polaroid card backgrounds (white rect + shadow + border)
+            if (layout.showCardShadow && layout.cardRects.isNotEmpty) {
+              for (final card in layout.cardRects) {
+                final cardLeft = card.left * w;
+                final cardTop = card.top * h;
+                final cardW = (card.right - card.left) * w;
+                final cardH = (card.bottom - card.top) * h;
+                layers.add(
+                  Positioned(
+                    left: cardLeft,
+                    top: cardTop,
+                    width: cardW,
+                    height: cardH,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFFEEEEEE), width: 1),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+                );
+              }
+            }
+
+            // 2. Draw photo slots
+            for (var i = 0; i < layout.slots.length && i < slots.length; i++) {
+              layers.add(
+                _SlotViewport(
+                  bounds: layout.slots[i],
+                  slot: slots[i],
+                  canvasW: w - outerPad * 2,
+                  canvasH: h - outerPad * 2,
+                  originX: outerPad,
+                  originY: outerPad,
+                  isSelected: selectedSlot == slots[i].slotIndex,
+                  onSlotSelected: onSlotSelected,
+                  onTransformChanged: onTransformChanged,
+                  onClearSlot: onClearSlot,
                 ),
-              ],
-            );
+              );
+            }
+
+            // 3. Grey divider between the two cards
+            if (layout.showCardShadow && layout.cardRects.length >= 2) {
+              final card1Bottom = layout.cardRects[0].bottom * h;
+              final dividerH = (layout.cardDividerPx > 0 ? layout.cardDividerPx.toDouble() : 1.0).clamp(1.0, 6.0);
+              layers.add(
+                Positioned(
+                  left: 0,
+                  top: card1Bottom,
+                  width: w,
+                  height: dividerH,
+                  child: Container(color: const Color(0xFFDDDDDD)),
+                ),
+              );
+            }
+
+            return Stack(children: layers);
           },
         ),
       ),
     );
   }
-
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Slot viewport (shared between grid and custom)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _SlotViewport extends StatefulWidget {
   const _SlotViewport({
@@ -357,51 +409,9 @@ class _SlotViewportState extends State<_SlotViewport> {
   }
 }
 
-class _FrameOverlayPainter extends CustomPainter {
-  const _FrameOverlayPainter({
-    required this.layout,
-    required this.divider,
-    required this.outerPadding,
-  });
-
-  final CustomLayoutDefinition layout;
-  final double divider;
-  final double outerPadding;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = divider
-      ..style = PaintingStyle.stroke;
-
-    final outer = Rect.fromLTWH(
-      outerPadding,
-      outerPadding,
-      size.width - outerPadding * 2,
-      size.height - outerPadding * 2,
-    );
-    canvas.drawRect(outer, paint);
-
-    // Draw slot boundaries for visual frame lines.
-    for (final s in layout.slots) {
-      final r = Rect.fromLTWH(
-        outerPadding + s.left * (size.width - outerPadding * 2),
-        outerPadding + s.top * (size.height - outerPadding * 2),
-        (s.right - s.left) * (size.width - outerPadding * 2),
-        (s.bottom - s.top) * (size.height - outerPadding * 2),
-      );
-      canvas.drawRect(r, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _FrameOverlayPainter oldDelegate) {
-    return oldDelegate.divider != divider ||
-        oldDelegate.layout != layout ||
-        oldDelegate.outerPadding != outerPadding;
-  }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Painters
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _GridOverlayPainter extends CustomPainter {
   const _GridOverlayPainter({

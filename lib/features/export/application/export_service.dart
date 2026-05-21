@@ -159,6 +159,38 @@ class ExportService {
       final outerPad = (resolved.canvasWidth * layout.outerPaddingRatio).round();
       final contentW = resolved.canvasWidth - outerPad * 2;
       final contentH = resolved.canvasHeight - outerPad * 2;
+
+      // Draw polaroid cards (white + light border) behind slots if requested.
+      if (layout.showCardShadow && layout.cardRects.isNotEmpty) {
+        final borderColor = img.ColorRgb8(238, 238, 238);
+        for (final c in layout.cardRects) {
+          final x1 = (c.left * resolved.canvasWidth).round();
+          final y1 = (c.top * resolved.canvasHeight).round();
+          final x2 = (c.right * resolved.canvasWidth).round();
+          final y2 = (c.bottom * resolved.canvasHeight).round();
+
+          // Fill white card (canvas already white, but keep explicit)
+          img.fillRect(canvas, x1: x1, y1: y1, x2: x2, y2: y2, color: img.ColorRgb8(255, 255, 255));
+          // 1px border
+          img.drawRect(canvas, x1: x1, y1: y1, x2: x2, y2: y2, color: borderColor);
+        }
+
+        // Grey divider between first two cards (1px or configured).
+        if (layout.cardRects.length >= 2) {
+          final c1 = layout.cardRects[0];
+          final yTop = (c1.bottom * resolved.canvasHeight).round();
+          final dividerH = (layout.cardDividerPx > 0 ? layout.cardDividerPx : 1).clamp(1, 6);
+          img.fillRect(
+            canvas,
+            x1: 0,
+            y1: yTop,
+            x2: resolved.canvasWidth,
+            y2: yTop + dividerH,
+            color: img.ColorRgb8(220, 220, 220),
+          );
+        }
+      }
+
       for (var i = 0; i < input.sourceBytes.length && i < layout.slots.length; i++) {
         final decoded = img.decodeImage(input.sourceBytes[i]);
         if (decoded == null) {
@@ -171,7 +203,11 @@ class ExportService {
         final h = ((slot.bottom - slot.top) * contentH).round();
         _drawImageCoverWithTransform(canvas, decoded, x, y, w, h, input.transforms[i]);
       }
-      _drawCustomTemplateDividers(canvas, layout, resolved.canvasWidth, resolved.canvasHeight, outerPad);
+
+      // Only draw custom dividers if requested.
+      if (layout.dividerThicknessRatio > 0) {
+        _drawCustomTemplateDividers(canvas, layout, resolved.canvasWidth, resolved.canvasHeight, outerPad);
+      }
     } else {
       int originX;
       int originY;
@@ -298,13 +334,6 @@ class ExportService {
         canvas.setPixel(x, y, lineColor);
       }
     }
-  }
-
-  static img.Image _resizeContain(img.Image source, int maxWidth, int maxHeight) {
-    final scale = math.min(maxWidth / source.width, maxHeight / source.height);
-    final targetW = math.max(1, (source.width * scale).round());
-    final targetH = math.max(1, (source.height * scale).round());
-    return img.copyResize(source, width: targetW, height: targetH);
   }
 
   static void _drawImageCoverWithTransform(
