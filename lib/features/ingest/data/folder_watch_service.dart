@@ -22,7 +22,8 @@ class FolderWatchService {
       await directory.create(recursive: true);
     }
 
-    await for (final event in directory.watch(events: FileSystemEvent.create | FileSystemEvent.modify)) {
+    await for (final event in directory.watch(
+        events: FileSystemEvent.create | FileSystemEvent.modify)) {
       if (event is! FileSystemCreateEvent && event is! FileSystemModifyEvent) {
         continue;
       }

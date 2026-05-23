@@ -184,7 +184,7 @@ class FrameTemplate {
     // - Left border increased by +20px
     // - Move both images 15px closer to center divider
     // Divider: 1px
-    // New slot size = 644x483 (4:3)
+    // New slot size = 676x507 (4:3) (+5% from previous)
     // Card height = 870, Canvas = 870 + 1 + 870 = 1741
     exportHeight: 1741,
     previewAspectRatio: 1200 / 1741,
@@ -196,10 +196,10 @@ class FrameTemplate {
       // Keep image content horizontal (no rotation).
       slotQuarterTurns: [0, 0],
       slots: [
-        // Card 1: x=358..1002, y=312..795
-        NormalizedRect(358 / 1200, 312 / 1741, 1002 / 1200, 795 / 1741),
-        // Card 2: x=358..1002, y=946..1429
-        NormalizedRect(358 / 1200, 946 / 1741, 1002 / 1200, 1429 / 1741),
+        // Card 1: x=342..1018, y=300..807
+        NormalizedRect(342 / 1200, 300 / 1741, 1018 / 1200, 807 / 1741),
+        // Card 2: x=342..1018, y=934..1441
+        NormalizedRect(342 / 1200, 934 / 1741, 1018 / 1200, 1441 / 1741),
       ],
       cardRects: [
         // Card 1: y=0..870
