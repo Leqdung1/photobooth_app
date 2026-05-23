@@ -178,13 +178,14 @@ class FrameTemplate {
     rows: 2,
     columns: 1,
     exportWidth: 1200,
-    // Landscape slot (4:3) with asymmetric mat:
-    //   left = 200px, right = 80px, top = 90px, bottom = 90px
+    // Updated per request:
+    // - Size reduced 30% (keep 4:3)
+    // - Shift right by +20px
+    // - Left border increased by +20px
+    // - Move both images 15px closer to center divider
     // Divider: 1px
-    // Slot width  = 1200 - 200 - 80 = 920px
-    // Slot height = 920 * 3/4 = 690px  (4:3 landscape, wider than tall)
-    // Card height = 90 + 690 + 90 = 870px
-    // Canvas = 870 + 1 + 870 = 1741px
+    // New slot size = 644x483 (4:3)
+    // Card height = 870, Canvas = 870 + 1 + 870 = 1741
     exportHeight: 1741,
     previewAspectRatio: 1200 / 1741,
     customLayout: CustomLayoutDefinition(
@@ -195,10 +196,10 @@ class FrameTemplate {
       // Rotate content 90° clockwise inside the landscape window.
       slotQuarterTurns: [1, 1],
       slots: [
-        // Card 1: x=200..1120, y=90..780 (4:3 landscape)
-        NormalizedRect(200 / 1200, 90 / 1741, 1120 / 1200, 780 / 1741),
-        // Card 2: card2 top=870+1=871; y=871+90=961..961+690=1651
-        NormalizedRect(200 / 1200, 961 / 1741, 1120 / 1200, 1651 / 1741),
+        // Card 1: x=358..1002, y=312..795
+        NormalizedRect(358 / 1200, 312 / 1741, 1002 / 1200, 795 / 1741),
+        // Card 2: x=358..1002, y=946..1429
+        NormalizedRect(358 / 1200, 946 / 1741, 1002 / 1200, 1429 / 1741),
       ],
       cardRects: [
         // Card 1: y=0..870
