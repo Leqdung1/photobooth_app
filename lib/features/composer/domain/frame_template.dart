@@ -193,8 +193,8 @@ class FrameTemplate {
       dividerThicknessRatio: 0,
       showCardShadow: true,
       cardDividerPx: 1,
-      // Rotate content 90° clockwise inside the landscape window.
-      slotQuarterTurns: [1, 1],
+      // Keep image content horizontal (no rotation).
+      slotQuarterTurns: [0, 0],
       slots: [
         // Card 1: x=358..1002, y=312..795
         NormalizedRect(358 / 1200, 312 / 1741, 1002 / 1200, 795 / 1741),
