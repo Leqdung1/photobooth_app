@@ -93,14 +93,12 @@ class FrameTemplate {
       cardDividerPx: 1,
       // Image areas (normalized to canvas)
       slots: [
-        // Force exact 4:3 window by using exact pixel-derived ratios.
-        // Image window per card:
-        //   x = 70..1130  => width 1060
-        //   y = 60..855   => height 795
-        // 1060/795 = 4/3 exactly.
-        NormalizedRect(70 / 1200, 60 / 2031, 1130 / 1200, 855 / 2031),
-        // Slot 2 image: y=1076..1871 (card 1015 + divider 1 + top 60)
-        NormalizedRect(70 / 1200, 1076 / 2031, 1130 / 1200, 1871 / 2031),
+        // Reduced image size by 10% (keep 4:3).
+        // Top margin reduced by 20px; lower slot also moved up 20px from divider.
+        // New window per card: x=123..1077, y=79.75..795.25
+        NormalizedRect(123 / 1200, 79.75 / 2031, 1077 / 1200, 795.25 / 2031),
+        // Slot 2 image: y=1095.75..1811.25
+        NormalizedRect(123 / 1200, 1095.75 / 2031, 1077 / 1200, 1811.25 / 2031),
       ],
       // Card rects
       cardRects: [
