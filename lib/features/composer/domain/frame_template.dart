@@ -113,15 +113,16 @@ class FrameTemplate {
 
   static const twoByTwo = FrameTemplate(
     id: '2x2',
-    label: '4 ảnh (2x2)',
+    label: '8 ảnh (2x4)',
     kind: FrameTemplateKind.grid,
-    rows: 2,
+    rows: 4,
     columns: 2,
     exportWidth: 1200,
     exportHeight: 1800,
     previewAspectRatio: 2 / 3,
     outerPaddingRatio: 0.022,
-    cellPaddingRatio: 0.025,
+    // Increase inner spacing so photos are farther from center divider.
+    cellPaddingRatio: 0.06,
     drawGridLines: true,
   );
 
