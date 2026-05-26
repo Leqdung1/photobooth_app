@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
@@ -15,11 +13,8 @@ import 'features/composer/presentation/preview_panel.dart';
 import 'features/export/application/export_service.dart';
 import 'features/export/application/phone_transfer_service.dart';
 import 'features/export/application/windows_android_transfer_service.dart';
-import 'features/export/application/windows_print_service.dart';
 import 'features/export/domain/export_request.dart';
 import 'features/export/domain/phone_transfer_request.dart';
-import 'features/export/presentation/export_preview_dialog.dart';
-import 'features/export/presentation/preview_export_dialog.dart';
 import 'features/ingest/data/folder_watch_service.dart';
 import 'features/ingest/data/thumbnail_service.dart';
 import 'features/ingest/domain/photo_asset.dart';
@@ -63,7 +58,6 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   final _composerController = ComposerController();
   final _exportService = ExportService();
   final PhoneTransferService _phoneTransferService = const WindowsAndroidTransferService();
-  final _printService = const WindowsPrintService();
 
   List<PhotoAsset> _assets = <PhotoAsset>[];
   StreamSubscription<PhotoAsset>? _watchSubscription;
@@ -75,8 +69,6 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   String? _statusMessage;
   bool _initializing = true;
   bool _isExporting = false;
-  bool _isPreviewing = false;
-  bool _printAfterExport = true;
   bool _autoTransferToPhone = true;
 
   static const _bgColor = Color(0xFF0B1633);
@@ -324,37 +316,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     );
   }
 
-  Future<void> _handlePreview() async {
-    setState(() {
-      _isPreviewing = true;
-      _statusMessage = 'Đang tạo preview...';
-    });
-
-    final result = await _exportService.buildPreview(_buildExportRequest());
-
-    if (!mounted) return;
-    setState(() {
-      _isPreviewing = false;
-      _statusMessage = result.success ? null : result.error;
-    });
-
-    if (!result.success || result.imageBytes == null) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => ExportPreviewDialog(imageBytes: result.imageBytes!),
-    );
-  }
-
-  Future<Uint8List?> _buildPreviewBytes() async {
-    final result = await _exportService.buildPreview(_buildExportRequest());
-    if (!result.success) {
-      return null;
-    }
-    return result.imageBytes;
-  }
-
-  Future<void> _handleExportWithSettings({required bool printAfterExport, required bool sendToMobile}) async {
+  Future<void> _handleExportWithSettings({required bool sendToMobile}) async {
     setState(() {
       _isExporting = true;
     });
@@ -375,14 +337,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       }
     }
 
-    if (ok && result.filePath != null && printAfterExport) {
-      try {
-        await _printService.printImageFile(result.filePath!);
-      } catch (error) {
-        message = '$message\nPrint failed: $error';
-        ok = false;
-      }
-    }
+    // Printing is temporarily disabled.
 
     if (!mounted) return;
     setState(() {
@@ -415,42 +370,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     });
   }
 
-  Future<void> _handleExport() async {
-    setState(() {
-      _isExporting = true;
-      _statusMessage = 'Export is running...';
-    });
-
-    final result = await _exportService.export(_buildExportRequest());
-
-    if (!mounted) return;
-    var message = result.success ? 'Exported: ${result.filePath}' : (result.error ?? 'Export failed');
-
-    if (result.success && result.filePath != null && _autoTransferToPhone) {
-      final transferResult = await _phoneTransferService.transfer(
-        PhoneTransferRequest(sourceFilePath: result.filePath!),
-      );
-      message = '$message\nUSB transfer: ${transferResult.message}';
-    }
-
-    if (result.success && result.filePath != null && _printAfterExport) {
-      try {
-        await _printService.printImageFile(result.filePath!);
-      } catch (error, stackTrace) {
-        assert(() {
-          debugPrint('Print failed: $error\n$stackTrace');
-          return true;
-        }());
-        message = '$message\n(Lỗi in: $error)';
-      }
-    }
-
-    if (!mounted) return;
-    setState(() {
-      _isExporting = false;
-      _statusMessage = message;
-    });
-  }
+  // Legacy export flow kept for reference; current flow uses _handleExportWithSettings.
 
   void _assignSelectedAssetToSlot() {
     final matches = _assets.where((asset) => asset.id == _selectedAssetId);
@@ -465,11 +385,7 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
     setState(() {});
   }
 
-  void _onPrintAfterExportChanged(bool value) {
-    setState(() {
-      _printAfterExport = value;
-    });
-  }
+  // Printing is temporarily disabled.
 
   void _onAutoTransferToPhoneChanged(bool value) {
     setState(() {
@@ -623,51 +539,14 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: _panelBorder),
                       ),
-                      child: Stack(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 84),
-                            child: SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: composerWidgets,
-                              ),
-                            ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: composerWidgets,
                           ),
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 18,
-                            child: Center(
-                              child: SizedBox(
-                                width: 220,
-                                height: 44,
-                                child: FilledButton.icon(
-                                  onPressed: (_isExporting || _isPreviewing)
-                                      ? null
-                                      : () async {
-                                          await showDialog<bool>(
-                                            context: context,
-                                            builder: (context) => PreviewExportDialog(
-                                              buildPreview: _buildPreviewBytes,
-                                              onStartExport: ({required printAfterExport, required sendToMobile}) async {
-                                                await _handleExportWithSettings(
-                                                  printAfterExport: printAfterExport,
-                                                  sendToMobile: sendToMobile,
-                                                );
-                                              },
-                                              initialPrintAfterExport: _printAfterExport,
-                                              initialSendToMobile: _autoTransferToPhone,
-                                            ),
-                                          );
-                                        },
-                                  icon: const Icon(Icons.file_upload_outlined, size: 18),
-                                  label: const Text('Preview & Export'),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -756,6 +635,20 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
                                   },
                                 ),
                               ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 44,
+                            child: FilledButton.icon(
+                              onPressed: _isExporting
+                                  ? null
+                                  : () => _handleExportWithSettings(
+                                        sendToMobile: _autoTransferToPhone,
+                                      ),
+                              icon: const Icon(Icons.file_upload_outlined, size: 18),
+                              label: Text(_isExporting ? 'Đang export...' : 'Export ra điện thoại'),
                             ),
                           ),
                         ],
