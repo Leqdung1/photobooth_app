@@ -210,6 +210,34 @@ class FrameTemplate {
     drawGridLines: false,
   );
 
+  /// Same as `towwo image ngang` but rotate image content 90° clockwise.
+  static const twoImageDoc = FrameTemplate(
+    id: '2_image_doc',
+    label: 'two image dọc',
+    kind: FrameTemplateKind.custom,
+    rows: 2,
+    columns: 1,
+    exportWidth: 1200,
+    exportHeight: 1741,
+    previewAspectRatio: 1200 / 1741,
+    customLayout: CustomLayoutDefinition(
+      outerPaddingRatio: 0,
+      dividerThicknessRatio: 0,
+      showCardShadow: true,
+      cardDividerPx: 1,
+      slotQuarterTurns: [1, 1],
+      slots: [
+        NormalizedRect(342 / 1200, 300 / 1741, 1018 / 1200, 807 / 1741),
+        NormalizedRect(342 / 1200, 934 / 1741, 1018 / 1200, 1441 / 1741),
+      ],
+      cardRects: [
+        NormalizedRect(0, 0, 1, 870 / 1741),
+        NormalizedRect(0, 871 / 1741, 1, 1),
+      ],
+    ),
+    drawGridLines: false,
+  );
+
   /// Polaroid (auto): chooses portrait/landscape canvas from input image ratio.
   static const polaroidAuto = FrameTemplate(
     id: 'polaroid_auto',
@@ -251,6 +279,7 @@ class FrameTemplate {
     oneByThree,
     oneByFour,
     twoLandscapeMatted,
+    twoImageDoc,
     twoByTwo,
     fourByFour,
     polaroidAuto,

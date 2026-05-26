@@ -242,6 +242,7 @@ class _CustomTemplateView extends StatelessWidget {
 
             // 2. Draw photo slots
             for (var i = 0; i < layout.slots.length && i < slots.length; i++) {
+              final turns = (i < layout.slotQuarterTurns.length) ? (layout.slotQuarterTurns[i] % 4) : 0;
               layers.add(
                 _SlotViewport(
                   bounds: layout.slots[i],
@@ -250,6 +251,7 @@ class _CustomTemplateView extends StatelessWidget {
                   canvasH: h - outerPad * 2,
                   originX: outerPad,
                   originY: outerPad,
+                  quarterTurns: turns,
                   isSelected: selectedSlot == slots[i].slotIndex,
                   onSlotSelected: onSlotSelected,
                   onTransformChanged: onTransformChanged,
