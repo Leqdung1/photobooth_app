@@ -126,48 +126,6 @@ class FrameTemplate {
     drawGridLines: true,
   );
 
-  static const fourByFour = FrameTemplate(
-    id: '4x4',
-    label: '16 ảnh (4x4)',
-    kind: FrameTemplateKind.grid,
-    rows: 4,
-    columns: 4,
-    exportWidth: 1200,
-    exportHeight: 1800,
-    previewAspectRatio: 2 / 3,
-    outerPaddingRatio: 0.018,
-    cellPaddingRatio: 0.012,
-    drawGridLines: true,
-  );
-
-  static const oneByThree = FrameTemplate(
-    id: '1x3',
-    label: '3 ảnh dọc (3x4)',
-    kind: FrameTemplateKind.grid,
-    rows: 3,
-    columns: 1,
-    exportWidth: 1200,
-    exportHeight: 1800,
-    previewAspectRatio: 2 / 3,
-    outerPaddingRatio: 0.022,
-    cellPaddingRatio: 0.02,
-    drawGridLines: true,
-  );
-
-  static const oneByFour = FrameTemplate(
-    id: '1x4',
-    label: '4 ảnh dọc (3x4)',
-    kind: FrameTemplateKind.grid,
-    rows: 4,
-    columns: 1,
-    exportWidth: 1200,
-    exportHeight: 1800,
-    previewAspectRatio: 2 / 3,
-    outerPaddingRatio: 0.02,
-    cellPaddingRatio: 0.018,
-    drawGridLines: true,
-  );
-
   /// Two landscape photos stacked vertically with equal mat on all sides.
   /// (Matches: 2 photos, horizontal/landscape, thick even white border, thin grey divider)
   static const twoLandscapeMatted = FrameTemplate(
@@ -238,52 +196,11 @@ class FrameTemplate {
     drawGridLines: false,
   );
 
-  /// Polaroid (auto): chooses portrait/landscape canvas from input image ratio.
-  static const polaroidAuto = FrameTemplate(
-    id: 'polaroid_auto',
-    label: 'Polaroid (auto)',
-    kind: FrameTemplateKind.polaroid,
-    rows: 1,
-    columns: 1,
-    exportWidth: 1200,
-    exportHeight: 1500,
-    previewAspectRatio: 1200 / 1500,
-    drawGridLines: false,
-  );
-
-  /// Editorial 5-vertical stack layout.
-  static const editorialFiveVertical = FrameTemplate(
-    id: 'editorial_5v',
-    label: 'Editorial 5V',
-    kind: FrameTemplateKind.custom,
-    rows: 1,
-    columns: 5,
-    exportWidth: 1200,
-    exportHeight: 1500,
-    previewAspectRatio: 1200 / 1500,
-    customLayout: CustomLayoutDefinition(
-      dividerThicknessRatio: 0.006,
-      slots: [
-        NormalizedRect(0.00, 0.00, 0.31, 0.53),
-        NormalizedRect(0.00, 0.53, 0.31, 1.00),
-        NormalizedRect(0.31, 0.00, 0.66, 1.00),
-        NormalizedRect(0.66, 0.00, 1.00, 0.52),
-        NormalizedRect(0.66, 0.52, 1.00, 1.00),
-      ],
-    ),
-    drawGridLines: false,
-  );
-
   static const List<FrameTemplate> presets = [
     oneByTwo,
-    oneByThree,
-    oneByFour,
     twoLandscapeMatted,
     twoImageDoc,
     twoByTwo,
-    fourByFour,
-    polaroidAuto,
-    editorialFiveVertical,
   ];
 }
 
