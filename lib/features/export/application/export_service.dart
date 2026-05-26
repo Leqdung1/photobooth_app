@@ -27,6 +27,8 @@ class PreviewResult {
 }
 
 class ExportService {
+  static const int _maxCanvasDimension = 8192;
+
   _RenderCache? _cache;
 
   Future<PreviewResult> buildPreview(ExportRequest request) async {
@@ -145,22 +147,42 @@ class ExportService {
       return const _RenderResult(error: 'No source images provided.');
     }
 
-    final firstDecoded = img.decodeImage(input.sourceBytes.first);
-    if (firstDecoded == null) {
-      return const _RenderResult(error: 'Cannot decode first image.');
+    final preparedImages = <img.Image>[];
+    final layout = input.template.isCustom ? input.template.customLayout : null;
+
+    for (var i = 0; i < input.sourceBytes.length; i++) {
+      final raw = img.decodeImage(input.sourceBytes[i]);
+      if (raw == null) {
+        return _RenderResult(error: 'Cannot decode image at slot ${i + 1}.');
+      }
+
+      img.Image prepared = img.bakeOrientation(raw);
+      if (layout != null) {
+        final turns = (i < layout.slotQuarterTurns.length) ? (layout.slotQuarterTurns[i] % 4) : 0;
+        prepared = switch (turns) {
+          1 => img.copyRotate(prepared, angle: 90),
+          2 => img.copyRotate(prepared, angle: 180),
+          3 => img.copyRotate(prepared, angle: 270),
+          _ => prepared,
+        };
+      }
+
+      preparedImages.add(prepared);
     }
 
-    final resolved = _resolveTemplateRuntime(input.template, firstDecoded.width / firstDecoded.height);
+    final firstDecoded = preparedImages.first;
+    final baseResolved = _resolveTemplateRuntime(input.template, firstDecoded.width / firstDecoded.height);
+    final exportScale = _computeExportScale(baseResolved, input, preparedImages);
+    final resolved = baseResolved.scaleBy(exportScale);
+
     final canvas = img.Image(width: resolved.canvasWidth, height: resolved.canvasHeight);
     img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
 
-    if (input.template.isCustom && input.template.customLayout != null) {
-      final layout = input.template.customLayout!;
+    if (layout != null) {
       final outerPad = (resolved.canvasWidth * layout.outerPaddingRatio).round();
       final contentW = resolved.canvasWidth - outerPad * 2;
       final contentH = resolved.canvasHeight - outerPad * 2;
 
-      // Draw polaroid cards (white + light border) behind slots if requested.
       if (layout.showCardShadow && layout.cardRects.isNotEmpty) {
         final borderColor = img.ColorRgb8(238, 238, 238);
         for (final c in layout.cardRects) {
@@ -169,17 +191,15 @@ class ExportService {
           final x2 = (c.right * resolved.canvasWidth).round();
           final y2 = (c.bottom * resolved.canvasHeight).round();
 
-          // Fill white card (canvas already white, but keep explicit)
           img.fillRect(canvas, x1: x1, y1: y1, x2: x2, y2: y2, color: img.ColorRgb8(255, 255, 255));
-          // 1px border
           img.drawRect(canvas, x1: x1, y1: y1, x2: x2, y2: y2, color: borderColor);
         }
 
-        // Grey divider between first two cards (1px or configured).
         if (layout.cardRects.length >= 2) {
           final c1 = layout.cardRects[0];
           final yTop = (c1.bottom * resolved.canvasHeight).round();
-          final dividerH = (layout.cardDividerPx > 0 ? layout.cardDividerPx : 1).clamp(1, 6);
+          final dividerBase = layout.cardDividerPx > 0 ? layout.cardDividerPx : 1;
+          final dividerH = math.max(1, (dividerBase * exportScale).round());
           img.fillRect(
             canvas,
             x1: 0,
@@ -191,28 +211,15 @@ class ExportService {
         }
       }
 
-      for (var i = 0; i < input.sourceBytes.length && i < layout.slots.length; i++) {
-        final decoded = img.decodeImage(input.sourceBytes[i]);
-        if (decoded == null) {
-          return _RenderResult(error: 'Cannot decode image at slot ${i + 1}.');
-        }
-
-        final turns = (i < layout.slotQuarterTurns.length) ? (layout.slotQuarterTurns[i] % 4) : 0;
-        final rotated = switch (turns) {
-          1 => img.copyRotate(decoded, angle: 90),
-          2 => img.copyRotate(decoded, angle: 180),
-          3 => img.copyRotate(decoded, angle: 270),
-          _ => decoded,
-        };
+      for (var i = 0; i < preparedImages.length && i < layout.slots.length; i++) {
         final slot = layout.slots[i];
         final x = outerPad + (slot.left * contentW).round();
         final y = outerPad + (slot.top * contentH).round();
         final w = ((slot.right - slot.left) * contentW).round();
         final h = ((slot.bottom - slot.top) * contentH).round();
-        _drawImageCoverWithTransform(canvas, rotated, x, y, w, h, input.transforms[i]);
+        _drawImageCoverWithTransform(canvas, preparedImages[i], x, y, w, h, input.transforms[i]);
       }
 
-      // Only draw custom dividers if requested.
       if (layout.dividerThicknessRatio > 0) {
         _drawCustomTemplateDividers(canvas, layout, resolved.canvasWidth, resolved.canvasHeight, outerPad);
       }
@@ -240,12 +247,7 @@ class ExportService {
       final cellW = gridW ~/ input.columns;
       final cellH = gridH ~/ input.rows;
 
-      for (var i = 0; i < input.sourceBytes.length; i++) {
-        final decoded = img.decodeImage(input.sourceBytes[i]);
-        if (decoded == null) {
-          return _RenderResult(error: 'Cannot decode image at slot ${i + 1}.');
-        }
-
+      for (var i = 0; i < preparedImages.length; i++) {
         final col = i % input.columns;
         final row = i ~/ input.columns;
         final cellX = originX + col * cellW;
@@ -259,7 +261,7 @@ class ExportService {
 
         _drawImageCoverWithTransform(
           canvas,
-          decoded,
+          preparedImages[i],
           cellX + padX,
           cellY + padY,
           innerW,
@@ -276,9 +278,93 @@ class ExportService {
     return _RenderResult(
       pngBytes: input.includePng ? Uint8List.fromList(img.encodePng(canvas)) : null,
       previewJpegBytes: input.includePreviewJpeg
-          ? Uint8List.fromList(img.encodeJpg(canvas, quality: 82))
+          ? Uint8List.fromList(img.encodeJpg(canvas, quality: 95))
           : null,
     );
+  }
+
+  static double _computeExportScale(
+    _ResolvedTemplate baseResolved,
+    _RenderInput input,
+    List<img.Image> preparedImages,
+  ) {
+    final limits = <double>[];
+    final layout = input.template.isCustom ? input.template.customLayout : null;
+
+    if (layout != null) {
+      final outerPad = (baseResolved.canvasWidth * layout.outerPaddingRatio).round();
+      final contentW = baseResolved.canvasWidth - outerPad * 2;
+      final contentH = baseResolved.canvasHeight - outerPad * 2;
+      final count = math.min(preparedImages.length, layout.slots.length);
+
+      for (var i = 0; i < count; i++) {
+        final slot = layout.slots[i];
+        final slotW = math.max(1, ((slot.right - slot.left) * contentW).round());
+        final slotH = math.max(1, ((slot.bottom - slot.top) * contentH).round());
+        final limit = _scaleLimitForSlot(slotW, slotH, preparedImages[i], input.transforms[i]);
+        if (limit != null) {
+          limits.add(limit);
+        }
+      }
+    } else {
+      int gridW;
+      int gridH;
+
+      if (baseResolved.isPolaroid && baseResolved.polaroidBorder != null) {
+        final b = baseResolved.polaroidBorder!;
+        gridW = baseResolved.canvasWidth - b.side * 2;
+        gridH = baseResolved.canvasHeight - b.top - b.bottom;
+      } else {
+        final outerPadX = (baseResolved.canvasWidth * (baseResolved.outerPaddingRatio ?? FrameLayout.outerPaddingRatio)).round();
+        final outerPadY = (baseResolved.canvasHeight * (baseResolved.outerPaddingRatio ?? FrameLayout.outerPaddingRatio)).round();
+        gridW = baseResolved.canvasWidth - outerPadX * 2;
+        gridH = baseResolved.canvasHeight - outerPadY * 2;
+      }
+
+      final cellW = gridW ~/ input.columns;
+      final cellH = gridH ~/ input.rows;
+      final cellPad = baseResolved.cellPaddingRatio ?? FrameLayout.cellPaddingRatio;
+      final padX = baseResolved.isPolaroid ? 0 : (cellW * cellPad).round();
+      final padY = baseResolved.isPolaroid ? 0 : (cellH * cellPad).round();
+      final innerW = math.max(1, cellW - padX * 2);
+      final innerH = math.max(1, cellH - padY * 2);
+
+      for (var i = 0; i < preparedImages.length; i++) {
+        final limit = _scaleLimitForSlot(innerW, innerH, preparedImages[i], input.transforms[i]);
+        if (limit != null) {
+          limits.add(limit);
+        }
+      }
+    }
+
+    if (limits.isEmpty) {
+      return 1;
+    }
+
+    var scale = limits.reduce(math.min);
+    final maxScaleByDimension = _maxCanvasDimension / math.max(baseResolved.canvasWidth, baseResolved.canvasHeight);
+    scale = math.min(scale, maxScaleByDimension);
+
+    if (!scale.isFinite || scale <= 0) {
+      return 1;
+    }
+
+    return scale;
+  }
+
+  static double? _scaleLimitForSlot(
+    int slotW,
+    int slotH,
+    img.Image source,
+    _SlotTransform transform,
+  ) {
+    final userScale = transform.scale <= 0 ? 1.0 : transform.scale;
+    final coverScale = math.max(slotW / source.width, slotH / source.height);
+    final requiredScaleAtBaseCanvas = coverScale * userScale;
+    if (!requiredScaleAtBaseCanvas.isFinite || requiredScaleAtBaseCanvas <= 0) {
+      return null;
+    }
+    return 1 / requiredScaleAtBaseCanvas;
   }
 
   static _ResolvedTemplate _resolveTemplateRuntime(FrameTemplate template, double sourceAspectRatio) {
@@ -358,7 +444,12 @@ class ExportService {
     final finalScale = baseScale * transform.scale;
     final targetW = math.max(1, (source.width * finalScale).round());
     final targetH = math.max(1, (source.height * finalScale).round());
-    final scaled = img.copyResize(source, width: targetW, height: targetH);
+    final scaled = img.copyResize(
+      source,
+      width: targetW,
+      height: targetH,
+      interpolation: img.Interpolation.cubic,
+    );
 
     final centerX = slotW / 2 + transform.offsetX;
     final centerY = slotH / 2 + transform.offsetY;
@@ -488,6 +579,28 @@ class _ResolvedTemplate {
   final double? outerPaddingRatio;
   final double? cellPaddingRatio;
   final bool drawGridLines;
+
+  _ResolvedTemplate scaleBy(double scale) {
+    if ((scale - 1).abs() < 0.0001) {
+      return this;
+    }
+
+    return _ResolvedTemplate(
+      canvasWidth: math.max(1, (canvasWidth * scale).round()),
+      canvasHeight: math.max(1, (canvasHeight * scale).round()),
+      isPolaroid: isPolaroid,
+      polaroidBorder: polaroidBorder == null
+          ? null
+          : _ResolvedPolaroidBorder(
+              top: math.max(1, (polaroidBorder!.top * scale).round()),
+              side: math.max(1, (polaroidBorder!.side * scale).round()),
+              bottom: math.max(1, (polaroidBorder!.bottom * scale).round()),
+            ),
+      outerPaddingRatio: outerPaddingRatio,
+      cellPaddingRatio: cellPaddingRatio,
+      drawGridLines: drawGridLines,
+    );
+  }
 }
 
 class _ResolvedPolaroidBorder {
