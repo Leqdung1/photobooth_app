@@ -28,6 +28,8 @@ class PreviewResult {
 
 class ExportService {
   static const int _maxCanvasDimension = 8192;
+  static const int _phoneMaxCanvasDimension = 4096;
+  static const int _phoneJpegQuality = 98;
 
   _RenderCache? _cache;
 
@@ -75,9 +77,31 @@ class ExportService {
     final outputDir = Directory(request.exportsDirectory);
     await outputDir.create(recursive: true);
 
-    final outputPath = _buildOutputPath(request.exportsDirectory);
+    final outputPath = _buildOutputPath(request.exportsDirectory, ext: 'png');
     final outFile = File(outputPath);
     await outFile.writeAsBytes(pngBytes, flush: true);
+
+    return ExportResult(success: true, filePath: outputPath);
+  }
+
+  Future<ExportResult> exportForPhone(ExportRequest request) async {
+    final rendered = await _render(
+      request,
+      includePng: false,
+      includePreviewJpeg: true,
+      maxCanvasDimension: _phoneMaxCanvasDimension,
+      jpegQuality: _phoneJpegQuality,
+    );
+
+    if (rendered.error != null || rendered.previewJpegBytes == null) {
+      return ExportResult(success: false, error: rendered.error ?? 'Render failed');
+    }
+
+    final outputDir = Directory(request.exportsDirectory);
+    await outputDir.create(recursive: true);
+
+    final outputPath = _buildOutputPath(request.exportsDirectory, ext: 'jpg');
+    await File(outputPath).writeAsBytes(rendered.previewJpegBytes!, flush: true);
 
     return ExportResult(success: true, filePath: outputPath);
   }
@@ -113,6 +137,8 @@ class ExportService {
     ExportRequest request, {
     required bool includePng,
     required bool includePreviewJpeg,
+    int maxCanvasDimension = _maxCanvasDimension,
+    int? jpegQuality,
   }) async {
     if (!request.isReady) {
       return _RenderResult(error: 'Please fill all ${request.requiredSlots} slots before preview.');
@@ -137,6 +163,8 @@ class ExportService {
       transforms: transforms,
       includePng: includePng,
       includePreviewJpeg: includePreviewJpeg,
+      maxCanvasDimension: maxCanvasDimension,
+      jpegQuality: jpegQuality,
     );
 
     return Isolate.run(() => _renderInIsolate(input));
@@ -278,7 +306,7 @@ class ExportService {
     return _RenderResult(
       pngBytes: input.includePng ? Uint8List.fromList(img.encodePng(canvas)) : null,
       previewJpegBytes: input.includePreviewJpeg
-          ? Uint8List.fromList(img.encodeJpg(canvas, quality: 95))
+          ? Uint8List.fromList(img.encodeJpg(canvas, quality: input.jpegQuality ?? 95))
           : null,
     );
   }
@@ -342,7 +370,7 @@ class ExportService {
     }
 
     var scale = limits.reduce(math.min);
-    final maxScaleByDimension = _maxCanvasDimension / math.max(baseResolved.canvasWidth, baseResolved.canvasHeight);
+    final maxScaleByDimension = input.maxCanvasDimension / math.max(baseResolved.canvasWidth, baseResolved.canvasHeight);
     scale = math.min(scale, maxScaleByDimension);
 
     if (!scale.isFinite || scale <= 0) {
@@ -504,11 +532,11 @@ class ExportService {
     }
   }
 
-  String _buildOutputPath(String exportsDirectory) {
+  String _buildOutputPath(String exportsDirectory, {String ext = 'png'}) {
     final stamp = DateTime.now().toIso8601String().replaceAll(':', '-').replaceAll('.', '-');
     var counter = 1;
     while (true) {
-      final candidate = p.join(exportsDirectory, 'final_${stamp}_$counter.png');
+      final candidate = p.join(exportsDirectory, 'final_${stamp}_$counter.$ext');
       if (!File(candidate).existsSync()) {
         return candidate;
       }
@@ -526,6 +554,8 @@ class _RenderInput {
     required this.transforms,
     required this.includePng,
     required this.includePreviewJpeg,
+    this.maxCanvasDimension = 8192,
+    this.jpegQuality,
   });
 
   final FrameTemplate template;
@@ -535,6 +565,9 @@ class _RenderInput {
   final List<_SlotTransform> transforms;
   final bool includePng;
   final bool includePreviewJpeg;
+  final int maxCanvasDimension;
+  // null = use default (95 for preview, 90 for phone path)
+  final int? jpegQuality;
 }
 
 class _SlotTransform {

@@ -10,7 +10,9 @@ import 'features/composer/application/composer_controller.dart';
 import 'features/composer/domain/frame_template.dart';
 import 'features/composer/presentation/composer_grid.dart';
 import 'features/composer/presentation/preview_panel.dart';
+import 'features/export/application/adb_android_transfer_service.dart';
 import 'features/export/application/export_service.dart';
+import 'features/export/application/fallback_phone_transfer_service.dart';
 import 'features/export/application/phone_transfer_service.dart';
 import 'features/export/application/windows_android_transfer_service.dart';
 import 'features/export/domain/export_request.dart';
@@ -57,7 +59,10 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
   final _thumbnailService = const ThumbnailService();
   final _composerController = ComposerController();
   final _exportService = ExportService();
-  final PhoneTransferService _phoneTransferService = const WindowsAndroidTransferService();
+  final PhoneTransferService _phoneTransferService = const FallbackPhoneTransferService(
+    AdbAndroidTransferService(),
+    WindowsAndroidTransferService(),
+  );
 
   List<PhotoAsset> _assets = <PhotoAsset>[];
   StreamSubscription<PhotoAsset>? _watchSubscription;
@@ -321,30 +326,58 @@ class _PhotoBoothHomePageState extends State<PhotoBoothHomePage> {
       _isExporting = true;
     });
 
-    final result = await _exportService.export(_buildExportRequest());
-    if (!mounted) return;
+    if (sendToMobile) {
+      // Phase 1 — fast phone JPEG (max 2048px, JPEG q90) + ADB push.
+      // Unblocks the UI as soon as the phone receives the photo.
+      final phoneResult = await _exportService.exportForPhone(_buildExportRequest());
+      if (!mounted) return;
 
-    var ok = result.success;
-    var message = ok ? 'Export successful' : (result.error ?? 'Export failed');
+      final String phoneMsg;
+      final bool phoneOk;
 
-    if (ok && result.filePath != null && sendToMobile) {
-      final transferResult = await _phoneTransferService.transfer(
-        PhoneTransferRequest(sourceFilePath: result.filePath!),
-      );
-      message = '$message\nMobile: ${transferResult.message}';
-      if (!transferResult.isSuccess) {
-        ok = false;
+      if (phoneResult.success && phoneResult.filePath != null) {
+        final transferResult = await _phoneTransferService.transfer(
+          PhoneTransferRequest(sourceFilePath: phoneResult.filePath!),
+        );
+        phoneMsg = transferResult.message;
+        phoneOk = transferResult.isSuccess;
+      } else {
+        phoneMsg = phoneResult.error ?? 'Không thể tạo ảnh cho điện thoại.';
+        phoneOk = false;
       }
+
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showBottomRightToast(
+        context,
+        title: phoneOk ? 'Đã gửi sang điện thoại!' : 'Lỗi gửi điện thoại',
+        message: phoneMsg,
+        ok: phoneOk,
+      );
+
+      // Phase 2 — full-quality PNG saved to PC in the background.
+      // UI is already unblocked; toast appears when done.
+      _exportService.export(_buildExportRequest()).then((result) {
+        if (!mounted) return;
+        _showBottomRightToast(
+          context,
+          title: result.success ? 'Đã lưu PNG chất lượng cao' : 'Lỗi lưu PNG',
+          message: result.success ? result.filePath ?? '' : (result.error ?? ''),
+          ok: result.success,
+        );
+      });
+    } else {
+      // Export to PC only (no phone transfer).
+      final result = await _exportService.export(_buildExportRequest());
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showBottomRightToast(
+        context,
+        title: result.success ? 'Export Successful!' : 'Export Failed',
+        message: result.success ? (result.filePath ?? '') : (result.error ?? 'Export failed'),
+        ok: result.success,
+      );
     }
-
-    // Printing is temporarily disabled.
-
-    if (!mounted) return;
-    setState(() {
-      _isExporting = false;
-    });
-
-    _showBottomRightToast(context, title: ok ? 'Export Successful!' : 'Export Failed', message: message, ok: ok);
   }
 
   void _showBottomRightToast(
